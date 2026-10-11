@@ -1088,13 +1088,13 @@ class RoadSurveyApp:
         trained_tasks = ", ".join(summary["task_classes"].keys()) or "regresi lebar"
         messagebox.showinfo(
             "Training Selesai",
-            f"Checkpoint tersimpan:\\n{summary['checkpoint']}\\n\\n"
-            f"Data latih: {summary['training_samples']}\\n"
-            f"Data validasi: {summary['validation_samples']}\\n"
-            f"Tugas klasifikasi terlatih: {trained_tasks}\\n"
-            f"Loss validasi terbaik: {val_text}\\n"
-            f"Perangkat: {summary['device']}\\n"
-            f"Waktu: {summary['elapsed_seconds']} detik\\n\\n"
+            f"Checkpoint tersimpan:\n{summary['checkpoint']}\n\n"
+            f"Data latih: {summary['training_samples']}\n"
+            f"Data validasi: {summary['validation_samples']}\n"
+            f"Tugas klasifikasi terlatih: {trained_tasks}\n"
+            f"Loss validasi terbaik: {val_text}\n"
+            f"Perangkat: {summary['device']}\n"
+            f"Waktu: {summary['elapsed_seconds']} detik\n\n"
             "Model adalah CNN yang dilatih dari awal, bukan model pretrained. "
             "Tinjau metrik dan hasil prediksi sebelum digunakan untuk keputusan survei.",
             parent=self.root,
@@ -1105,7 +1105,7 @@ class RoadSurveyApp:
         if not ai_model.TORCH_AVAILABLE:
             message = "PyTorch belum tersedia. Training dan inferensi tidak dapat dijalankan."
         elif not SURVEY_AI_MODEL.is_file():
-            message = f"Checkpoint model terlatih belum ditemukan:\\n{SURVEY_AI_MODEL}"
+            message = f"Checkpoint model terlatih belum ditemukan:\n{SURVEY_AI_MODEL}"
         else:
             try:
                 _, checkpoint, device = training_engine.load_model(
@@ -1114,10 +1114,10 @@ class RoadSurveyApp:
                 tasks = ", ".join(checkpoint.get("task_classes", {}).keys()) or "tidak ada klasifikasi"
                 widths = ", ".join(checkpoint.get("trained_width_fields", [])) or "tidak ada regresi lebar terlatih"
                 message = (
-                    f"Checkpoint berhasil dimuat pada {device}.\\n"
-                    f"Tanggal training: {checkpoint.get('trained_at', 'tidak tercatat')}\\n"
-                    f"Tugas klasifikasi: {tasks}\\n"
-                    f"Lebar yang dilatih: {widths}\\n"
+                    f"Checkpoint berhasil dimuat pada {device}.\n"
+                    f"Tanggal training: {checkpoint.get('trained_at', 'tidak tercatat')}\n"
+                    f"Tugas klasifikasi: {tasks}\n"
+                    f"Lebar yang dilatih: {widths}\n"
                     f"Catatan model: {checkpoint.get('model_note', '')}"
                 )
             except Exception as error:
