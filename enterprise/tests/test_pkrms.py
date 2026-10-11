@@ -20,7 +20,7 @@ class NormalizeConditionTests(unittest.TestCase):
                 self.assertEqual(normalize_condition(source), expected)
 
     def test_negative_or_ambiguous_positive_phrases_are_not_misclassified(self):
-        for source in ("tidak baik", "kurang baik", "belum baik", "tidak layak", "tidak aman"):
+        for source in ("tidak baik", "kurang baik", "belum baik", "tidak layak", "tidak aman", "tidak buruk", "belum rusak berat"):
             with self.subTest(source=source):
                 self.assertIsNone(normalize_condition(source))
 
