@@ -355,3 +355,38 @@ Sebuah checkpoint baru dinyatakan selesai jika:
 6. Tidak ada klaim bahwa fitur telah teruji melebihi bukti yang tersedia.
 
 Akhir dokumen.
+
+
+================================================================
+9. CATATAN PERUBAHAN — 2026-10-12
+================================================================
+Checkpoint: pemeriksaan awal kualitas label PKRMS
+Masalah/tujuan:
+- Normalisasi label sebelumnya dapat mengklasifikasikan frasa "tidak baik"
+  sebagai "baik" karena pencarian substring.
+- Workflow CI sebelumnya hanya mengompilasi sintaks dan tidak menjalankan tes regresi.
+
+File yang diubah:
+- enterprise/aprj_pkrms.py
+- enterprise/tests/test_pkrms.py (baru)
+- .github/workflows/aprj-syntax.yml
+
+Perubahan:
+- Normalisasi label menolak frasa positif yang dinegasikan atau ambigu.
+- Label tidak dikenal dikembalikan sebagai None agar tidak ditebak.
+- Ditambahkan tes regresi untuk label standar, variasi penulisan, frasa negatif,
+  dan nilai yang tidak dikenal.
+- CI kini menjalankan compileall dan unittest dengan dependency minimum openpyxl.
+
+Hasil terverifikasi:
+- GitHub Actions "APRJ Python Syntax and Tests" berhasil pada commit
+  50d508e7bb3cf9215e67b09ec0f4877e1c2e3e57.
+- URL: https://github.com/kajo44/Kzoan/actions/runs/38165173630
+
+Batasan:
+- Ini hanya checkpoint tes unit dan sintaks.
+- Build Windows, uji GUI, uji training AI, PostgreSQL nyata, dan validasi skema
+  PKRMS resmi masih belum dilakukan; jangan menyatakan aplikasi lengkap operasional.
+
+Status: LULUS untuk normalisasi label dan tes CI; CHECKPOINT 0/runtime keseluruhan
+masih BERJALAN.
