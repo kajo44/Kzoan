@@ -50,22 +50,22 @@ python -m pip install --upgrade pip
 if errorlevel 1 goto :fail
 
 echo.
-echo [1/2] Memasang dependency build dari requirements-build.txt...
+echo [1/4] Memasang dependency build dari requirements-build.txt...
 python -m pip install -r requirements-build.txt
 if errorlevel 1 goto :fail
 
 echo.
-echo [1/3] Memeriksa sintaks seluruh modul dan tes...
+echo [2/4] Memeriksa sintaks seluruh modul dan tes...
 python -m compileall -q aprj_main.py aprj_ui.py aprj_core.py aprj_database.py aprj_ai_model.py aprj_pkrms.py aprj_training_engine.py aprj_geospasial.py aprj_metadata.py aprj_map_matching.py aprj_exif_fallback.py tests
 if errorlevel 1 goto :fail
 
 echo.
-echo [2/3] Menjalankan tes regresi...
+echo [3/4] Menjalankan tes regresi...
 python -m unittest discover -s tests -v
 if errorlevel 1 goto :fail
 
 echo.
-echo [3/3] Mem-build aplikasi ONEDIR...
+echo [4/4] Mem-build aplikasi ONEDIR...
 python -m PyInstaller --noconfirm --clean --windowed --onedir ^
   --contents-directory "." ^
   --name APRJ_Next ^
