@@ -100,6 +100,62 @@ def _point_at_distance(coords, target_m):
     return coords[-1]
 
 
+
+def _viterbi_decode(candidate_lists, gps_points, sigma_m=20.0, heading_sigma_deg=45.0):
+    """Viterbi untuk urutan kandidat; transisi geometris, bukan topologi jalan penuh."""
+    if not candidate_lists:
+        return [], []
+    dp, back = [], []
+    def emission(candidate):
+        distance = float(candidate.get("distance_m") or 0.0)
+        value = -0.5 * (distance / max(1.0, sigma_m)) ** 2
+        heading = candidate.get("heading_difference_deg")
+        if heading is not None:
+            value -= 0.5 * (float(heading) / max(1.0, heading_sigma_deg)) ** 2
+        return value
+    for i, candidates in enumerate(candidate_lists):
+        if not candidates:
+            dp.append([])
+            back.append([])
+            continue
+        values = [float("-inf")] * len(candidates)
+        previous_indices = [None] * len(candidates)
+        if i == 0 or not candidate_lists[i - 1]:
+            values = [emission(candidate) for candidate in candidates]
+        else:
+            lat1, lon1 = gps_points[i - 1]
+            lat2, lon2 = gps_points[i]
+            observed = _distance_m(lat1, lon1, lat2, lon2)
+            transition_sigma = max(15.0, observed * 0.5 + 10.0)
+            for j, candidate in enumerate(candidates):
+                for k, previous in enumerate(candidate_lists[i - 1]):
+                    if k >= len(dp[i - 1]) or dp[i - 1][k] == float("-inf"):
+                        continue
+                    projected = _distance_m(
+                        previous["projected_latitude"], previous["projected_longitude"],
+                        candidate["projected_latitude"], candidate["projected_longitude"])
+                    transition = -0.5 * ((projected - observed) / transition_sigma) ** 2
+                    value = dp[i - 1][k] + transition + emission(candidate)
+                    if value > values[j]:
+                        values[j], previous_indices[j] = value, k
+        dp.append(values)
+        back.append(previous_indices)
+    valid = [j for j, value in enumerate(dp[-1]) if value != float("-inf")]
+    if not valid:
+        return [0 if items else None for items in candidate_lists], [None] * len(candidate_lists)
+    index = max(valid, key=lambda j: dp[-1][j])
+    path, scores = [None] * len(candidate_lists), [None] * len(candidate_lists)
+    for i in range(len(candidate_lists) - 1, -1, -1):
+        if not candidate_lists[i]:
+            index = None
+            continue
+        if index is None or index >= len(dp[i]) or dp[i][index] == float("-inf"):
+            index = max(range(len(dp[i])), key=lambda j: dp[i][j])
+        path[i], scores[i] = index, dp[i][index]
+        index = back[i][index] if i > 0 else None
+    return path, scores
+
+
 class MapMatchingEngine:
     def __init__(self, app_root):
         self.app_root = Path(app_root)
@@ -239,7 +295,7 @@ class MapMatchingEngine:
 
     def run(self, photo_root, road_file, interval_m=100, radius_m=100,
             max_speed_kmh=40, heading_tolerance_deg=65, max_time_gap_s=10,
-            use_heading=True, use_speed=True, progress=None, cancel_event=None):
+            use_heading=True, use_speed=True, use_hmm=True, progress=None, cancel_event=None):
         interval_m, radius_m = int(interval_m), float(radius_m)
         max_speed_kmh, heading_tolerance_deg = float(max_speed_kmh), float(heading_tolerance_deg)
         max_time_gap_s = float(max_time_gap_s)
@@ -292,8 +348,7 @@ class MapMatchingEngine:
                         photo[gap_key] = dt
                         photo[speed_key] = dist / dt * 3.6
 
-        # Candidate matching photo -> segment, then collapse to nearest STA interval.
-        best_by_station = {}
+        # Candidate lokal dipertahankan sebagai baseline; Viterbi menilai urutan kandidat.
         results = []
         radius_cells = max(1, int(math.ceil(radius_m / (GRID_DEG * 110000))) + 1)
         for i, photo in enumerate(gps_photos):
@@ -301,15 +356,15 @@ class MapMatchingEngine:
                 raise InterruptedError("Proses dibatalkan.")
             lon, lat = photo["longitude"], photo["latitude"]
             cx, cy = _cell(lon, lat)
-            candidates = set()
-            for dx in range(-radius_cells, radius_cells+1):
-                for dy in range(-radius_cells, radius_cells+1):
-                    candidates.update(grid.get((cx+dx, cy+dy), ()))
+            candidate_indices = set()
+            for dx in range(-radius_cells, radius_cells + 1):
+                for dy in range(-radius_cells, radius_cells + 1):
+                    candidate_indices.update(grid.get((cx + dx, cy + dy), ()))
             scored = []
             speeds = [v for v in (photo["speed_from_prev_kmh"], photo["speed_to_next_kmh"]) if v is not None]
             speed = max(speeds) if speeds else None
             speed_bad = bool(use_speed and speed is not None and speed > max_speed_kmh)
-            for seg_idx in candidates:
+            for seg_idx in candidate_indices:
                 seg = segments[seg_idx]
                 distance, fraction, plon, plat, bearing = _project_to_segment(lon, lat, seg["a"], seg["b"])
                 if distance > radius_m:
@@ -319,62 +374,120 @@ class MapMatchingEngine:
                     heading_diff = _angle_diff(photo["camera_heading_deg"], bearing)
                 if use_heading and heading_diff is not None and heading_diff > heading_tolerance_deg:
                     continue
-                # STA along the digitized line, from its first vertex toward its last.
                 sta_exact = seg["offset_m"] + fraction * seg["length_m"]
                 sta_bucket = int(math.floor(sta_exact / interval_m) * interval_m)
                 sta_lon, sta_lat = _point_at_distance(seg["road_coords"], sta_bucket)
                 score = distance + ((heading_diff or 0.0) / 180.0) * min(radius_m, 50.0)
-                scored.append((score, distance, heading_diff, seg, sta_exact, sta_bucket, sta_lon, sta_lat, bearing))
+                scored.append({
+                    "score": score, "distance_m": distance, "heading_difference_deg": heading_diff,
+                    "road_id": seg["road_id"], "road_name": seg["road_name"],
+                    "sta_exact_m": sta_exact, "sta_m": sta_bucket,
+                    "sta_latitude": sta_lat, "sta_longitude": sta_lon,
+                    "projected_latitude": plat, "projected_longitude": plon,
+                    "road_bearing_deg": bearing,
+                })
+            scored.sort(key=lambda c: (c["score"], c["distance_m"], c["road_id"], c["sta_m"]))
+            scored = scored[:8]
             result = dict(photo)
             result.update({
                 "road_id": "", "road_name": "", "sta_m": None, "sta_km": None,
                 "sta_latitude": None, "sta_longitude": None, "distance_m": None,
                 "road_bearing_deg": None, "heading_difference_deg": None,
-                "match_status": "Tidak ada ruas dalam radius",
+                "projected_sta_m": None, "baseline_road_id": "", "baseline_road_name": "",
+                "baseline_sta_m": None, "baseline_distance_m": None, "hmm_score": None,
+                "match_status": "Tidak ada ruas dalam radius", "_candidates": scored,
             })
             if speed_bad:
                 result["match_status"] = f"Ditolak: kecepatan antar-foto {speed:.1f} km/jam melebihi batas"
             elif scored:
-                scored.sort(key=lambda x: (x[0], x[1]))
-                score, distance, hdiff, seg, sta_exact, sta_bucket, plon, plat, bearing = scored[0]
+                best = scored[0]
                 result.update({
-                    "road_id": seg["road_id"], "road_name": seg["road_name"],
-                    "sta_m": sta_bucket, "sta_km": sta_bucket / 1000.0,
-                    "sta_latitude": plat, "sta_longitude": plon,
-                    "distance_m": distance, "road_bearing_deg": bearing,
-                    "heading_difference_deg": hdiff,
-                    "projected_sta_m": sta_exact,
-                    "match_status": "Cocok - perlu verifikasi",
+                    "baseline_road_id": best["road_id"], "baseline_road_name": best["road_name"],
+                    "baseline_sta_m": best["sta_m"], "baseline_distance_m": best["distance_m"],
+                    "road_id": best["road_id"], "road_name": best["road_name"],
+                    "sta_m": best["sta_m"], "sta_km": best["sta_m"] / 1000.0,
+                    "sta_latitude": best["sta_latitude"], "sta_longitude": best["sta_longitude"],
+                    "distance_m": best["distance_m"], "road_bearing_deg": best["road_bearing_deg"],
+                    "heading_difference_deg": best["heading_difference_deg"],
+                    "projected_sta_m": best["sta_exact_m"],
+                    "match_status": "Cocok - baseline lokal; perlu verifikasi",
                 })
-                key = (seg["road_id"], sta_bucket)
-                previous = best_by_station.get(key)
-                rank = (score, distance, result["photo_path"].casefold())
-                if previous is None or rank < previous[0]:
-                    best_by_station[key] = (rank, result)
             results.append(result)
-            if progress and (i+1) % 100 == 0:
-                progress("match", i+1, len(gps_photos), f"Mencocokkan foto ber-GPS: {i+1}/{len(gps_photos)}.")
+            if progress and (i + 1) % 100 == 0:
+                progress("match", i + 1, len(gps_photos), f"Membentuk kandidat ruas: {i+1}/{len(gps_photos)}.")
+
+        if use_hmm:
+            # Dekode urutan per folder. Timestamp hilang/gap besar memutus rangkaian.
+            by_folder_results = defaultdict(list)
+            for row in results:
+                by_folder_results[row["source_folder"]].append(row)
+            for sequence in by_folder_results.values():
+                sequence.sort(key=lambda p: (p["taken_at"] is None, p["taken_at"] or datetime.max,
+                                             p["photo_path"].casefold()))
+                run = []
+                def decode_run(items):
+                    if not items:
+                        return
+                    path, scores = _viterbi_decode(
+                        [item["_candidates"] for item in items],
+                        [(item["latitude"], item["longitude"]) for item in items],
+                    )
+                    for item, candidate_index, path_score in zip(items, path, scores):
+                        if candidate_index is None:
+                            continue
+                        candidate = item["_candidates"][candidate_index]
+                        item.update({
+                            "road_id": candidate["road_id"], "road_name": candidate["road_name"],
+                            "sta_m": candidate["sta_m"], "sta_km": candidate["sta_m"] / 1000.0,
+                            "sta_latitude": candidate["sta_latitude"], "sta_longitude": candidate["sta_longitude"],
+                            "distance_m": candidate["distance_m"],
+                            "road_bearing_deg": candidate["road_bearing_deg"],
+                            "heading_difference_deg": candidate["heading_difference_deg"],
+                            "projected_sta_m": candidate["sta_exact_m"], "hmm_score": path_score,
+                            "match_status": "Cocok - HMM/Viterbi; perlu verifikasi",
+                        })
+                previous_time = None
+                for item in sequence:
+                    current_time = item.get("taken_at")
+                    if not item["_candidates"] or current_time is None:
+                        decode_run(run)
+                        run = []
+                        if item["_candidates"]:
+                            decode_run([item])
+                        previous_time = None
+                        continue
+                    if previous_time is not None:
+                        gap = (current_time - previous_time).total_seconds()
+                        if gap <= 0 or gap > max_time_gap_s:
+                            decode_run(run)
+                            run = []
+                    run.append(item)
+                    previous_time = current_time
+                decode_run(run)
+
+        best_by_station = {}
+        for row in results:
+            row.pop("_candidates", None)
+            if row.get("sta_m") is None or not row.get("road_id"):
+                continue
+            if str(row.get("match_status", "")).startswith("Ditolak:"):
+                continue
+            key = (row["road_id"], row["sta_m"])
+            rank = (float(row.get("distance_m") if row.get("distance_m") is not None else math.inf),
+                    row["photo_path"].casefold())
+            previous = best_by_station.get(key)
+            if previous is None or rank < previous[0]:
+                best_by_station[key] = (rank, row)
 
         chosen = []
         for _, row in best_by_station.values():
-            row["match_status"] = "Cocok - perlu verifikasi"
+            row["match_status"] = "Cocok - HMM/Viterbi; perlu verifikasi" if use_hmm else "Cocok - baseline lokal; perlu verifikasi"
             chosen.append(row)
         chosen.sort(key=lambda r: (r["road_name"].casefold(), r["sta_m"] if r["sta_m"] is not None else -1))
-        # Retain unmatched/filtered photos in CSV for diagnostics, but mark duplicates as not selected.
         chosen_paths = {r["photo_path"] for r in chosen}
         for row in results:
-            if row["match_status"] == "Cocok - perlu verifikasi" and row["photo_path"] not in chosen_paths:
+            if row.get("sta_m") is not None and row["photo_path"] not in chosen_paths and row.get("road_id"):
                 row["match_status"] = "Kandidat tidak terpilih: STA sudah memiliki foto lebih baik"
-        self.last_results = chosen
-        self.last_diagnostics = results + no_gps
-        self.last_root = str(Path(photo_root).resolve())
-        self.last_road_file = str(Path(road_file).resolve())
-        self.last_interval = interval_m
-        if progress:
-            progress("done", len(chosen), len(results),
-                     f"Selesai: {scanned} foto dipindai, {len(gps_photos)} memiliki GPS, {len(chosen)} foto terpilih pada STA.")
-        return chosen, results, scanned, len(gps_photos)
-
     def export_csv(self, destination, include_diagnostics=True):
         rows = self.last_diagnostics if include_diagnostics else self.last_results
         fields = [
