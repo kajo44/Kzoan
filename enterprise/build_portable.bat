@@ -56,7 +56,7 @@ if errorlevel 1 goto :fail
 
 echo.
 echo [2/2] Memeriksa sintaks modul inti...
-python -m py_compile aprj_main.py aprj_ui.py aprj_core.py aprj_database.py aprj_ai_model.py aprj_pkrms.py aprj_training_engine.py aprj_geospasial.py
+python -m py_compile aprj_main.py aprj_ui.py aprj_core.py aprj_database.py aprj_ai_model.py aprj_pkrms.py aprj_training_engine.py aprj_geospasial.py aprj_metadata.py
 if errorlevel 1 goto :fail
 
 echo.
@@ -66,6 +66,7 @@ python -m PyInstaller --noconfirm --clean --windowed --onedir ^
   --name APRJ_Next ^
   --paths "." ^
   --collect-all PIL ^
+  --collect-all piexif ^
   --collect-all openpyxl ^
   --collect-all torch ^
   --add-data "bin;bin" ^
@@ -75,6 +76,7 @@ python -m PyInstaller --noconfirm --clean --windowed --onedir ^
   --hidden-import aprj_database ^
   --hidden-import aprj_pkrms ^
   --hidden-import aprj_geospasial ^
+  --hidden-import aprj_metadata ^
   --hidden-import psycopg2 ^
   --hidden-import psycopg2._psycopg ^
   aprj_main.py
