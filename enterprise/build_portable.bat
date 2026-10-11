@@ -1,10 +1,10 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title Build APRJ Portable ONEDIR
+title Build APRJ Next Portable ONEDIR
 
 echo ============================================================
-echo  APRJ - Build Windows ONEDIR Portable
+echo  APRJ Next - Build Windows ONEDIR Portable
 echo ============================================================
 echo.
 echo Prasyarat: Windows 10/11 64-bit, Python 3.11 64-bit dan Tcl/Tk.
@@ -42,34 +42,34 @@ if errorlevel 1 goto :fail
 
 echo.
 echo [3/3] Memeriksa sintaks aplikasi...
-python -m py_compile main.py APRJ_v2.py core.py database.py ai_model.py pkrms_utils.py training_engine.py
+python -m py_compile aprj_main.py aprj_ui.py aprj_core.py aprj_database.py aprj_ai_model.py aprj_pkrms.py aprj_training_engine.py main.py APRJ_v2.py core.py database.py ai_model.py pkrms_utils.py training_engine.py
 if errorlevel 1 goto :fail
 
 echo.
 echo Mem-build aplikasi ONEDIR...
 python -m PyInstaller --noconfirm --clean --windowed --onedir ^
-  --name APRJ ^
+  --name APRJ_Next ^
   --paths "." ^
   --collect-all PIL ^
   --collect-all openpyxl ^
   --collect-all torch ^
-  --hidden-import ai_model ^
-  --hidden-import training_engine ^
-  --hidden-import database ^
-  --hidden-import pkrms_utils ^
+  --hidden-import aprj_ai_model ^
+  --hidden-import aprj_training_engine ^
+  --hidden-import aprj_database ^
+  --hidden-import aprj_pkrms ^
   --hidden-import psycopg2 ^
   --hidden-import psycopg2._psycopg ^
-  main.py
+  aprj_main.py
 if errorlevel 1 goto :fail
 
-if exist "README_PORTABLE.txt" copy /Y "README_PORTABLE.txt" "dist\APRJ\README_PORTABLE.txt" >nul
+if exist "..\APRJ_PORTABLE_GUIDE.txt" copy /Y "..\APRJ_PORTABLE_GUIDE.txt" "dist\APRJ_Next\APRJ_PORTABLE_GUIDE.txt" >nul
 
 echo.
 echo ============================================================
 echo BUILD BERHASIL
-echo Folder aplikasi: %CD%\dist\APRJ
-echo Jalankan: dist\APRJ\APRJ.exe
-echo Salin SELURUH folder APRJ, jangan hanya file EXE.
+echo Folder aplikasi: %CD%\dist\APRJ_Next
+echo Jalankan: dist\APRJ_Next\APRJ_Next.exe
+echo Salin SELURUH folder APRJ_Next, jangan hanya file EXE.
 echo ============================================================
 pause
 exit /b 0
