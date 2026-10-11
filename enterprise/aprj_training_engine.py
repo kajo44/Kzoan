@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import random
+import shutil
 import time
 from datetime import datetime
 from pathlib import Path
@@ -60,7 +61,8 @@ def _numeric(value):
 
 def train_model(records, task_options, width_fields, image_size, checkpoint_path,
                 run_dir, epochs=10, batch_size=4, device_name="Otomatis",
-                cancel_event=None, progress_callback=None, seed=42):
+                cancel_event=None, progress_callback=None, seed=42,
+                training_mode="Latih ulang dari awal"):
     """Latih CNN multi-task dari label survei yang telah dikonfirmasi manusia."""
     _require_torch()
     started = time.time()
@@ -132,6 +134,32 @@ def train_model(records, task_options, width_fields, image_size, checkpoint_path
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = _make_model(task_classes, len(width_fields)).to(device)
+    existing_checkpoint = Path(checkpoint_path)
+    if training_mode == "Lanjutkan dari model aktif":
+        if not existing_checkpoint.is_file():
+            raise FileNotFoundError(
+                "Tidak ada model aktif untuk dilanjutkan. Pilih 'Latih ulang dari awal'."
+            )
+        try:
+            try:
+                previous = torch.load(existing_checkpoint, map_location=device, weights_only=True)
+            except TypeError:
+                previous = torch.load(existing_checkpoint, map_location=device)
+        except Exception as error:
+            raise RuntimeError(f"Model aktif tidak dapat dibaca: {error}") from error
+        if previous.get("task_classes") != task_classes:
+            raise ValueError(
+                "Label/kelas dataset tidak sama dengan model aktif. "
+                "Gunakan 'Latih ulang dari awal' atau lengkapi dataset agar kelasnya sama."
+            )
+        if previous.get("width_fields") != list(width_fields):
+            raise ValueError("Daftar field lebar tidak kompatibel dengan model aktif.")
+        try:
+            model.load_state_dict(previous["state_dict"])
+        except Exception as error:
+            raise RuntimeError(f"Bobot model aktif tidak kompatibel: {error}") from error
+    elif training_mode != "Latih ulang dari awal":
+        raise ValueError(f"Mode training tidak dikenal: {training_mode}")
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.0001)
     run_dir = Path(run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -252,10 +280,18 @@ def train_model(records, task_options, width_fields, image_size, checkpoint_path
         "training_samples": len(training),
         "validation_samples": len(validation),
         "device": str(device),
-        "model_note": "CNN lokal yang diinisialisasi dari awal; bukan model pretrained.",
+        "model_note": (
+            "CNN lokal; bobot dilanjutkan dari checkpoint aktif (optimizer diinisialisasi ulang)."
+            if training_mode == "Lanjutkan dari model aktif"
+            else "CNN lokal yang diinisialisasi dari awal; bukan model pretrained."
+        ),
+        "training_mode": training_mode,
     }
     temporary = checkpoint_path.with_suffix(checkpoint_path.suffix + ".tmp")
     torch.save(checkpoint, temporary)
+    if checkpoint_path.is_file():
+        backup_path = checkpoint_path.with_suffix(checkpoint_path.suffix + ".bak")
+        shutil.copy2(checkpoint_path, backup_path)
     temporary.replace(checkpoint_path)
 
     summary = {
