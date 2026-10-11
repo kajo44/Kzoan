@@ -1,6 +1,20 @@
+# Python environment and build output
 .venv/
 build/
 dist/
 __pycache__/
 *.py[cod]
 *.spec
+
+# Local runtime data: do not commit survey records, models, or logs.
+data/
+dataset/
+downloads/
+logs/
+survey_ai/
+config/
+
+# ExifTool is supplied locally during the portable build; do not commit binaries.
+bin/exiftool.exe
+bin/exiftool
+bin/exiftool_files/
