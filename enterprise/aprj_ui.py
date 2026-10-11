@@ -85,6 +85,8 @@ class SQLiteSurveyStore:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(str(self.db_path), timeout=30) as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=FULL")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS survey_records (
                     photo_key TEXT PRIMARY KEY,
@@ -289,19 +291,17 @@ class RoadSurveyApp:
                     except OSError as error:
                         errors.append(f"{item.name}: {error}")
             # Hanya file sementara/cache Python yang dikenal, bukan seluruh file aplikasi.
-            for pattern in ("*.tmp", "*.temp", "*.pyc"):
-                for item in APP_ROOT.rglob(pattern):
+            for pattern in ("*.tmp", "*.temp"):
+                for item in APP_ROOT.glob(pattern):
                     try:
-                        if any(part.lower() in {".git", "venv", ".venv", "node_modules"} for part in item.parts):
-                            continue
                         if item.is_file() or item.is_symlink():
                             item.unlink()
                             removed_files += 1
                     except OSError as error:
                         errors.append(f"{item}: {error}")
-            for item in APP_ROOT.rglob("__pycache__"):
+            for item in APP_ROOT.glob("__pycache__"):
                 try:
-                    if item.is_dir() and not any(part.lower() in {".git", "venv", ".venv", "node_modules"} for part in item.parts):
+                    if item.is_dir():
                         shutil.rmtree(item)
                         removed_dirs += 1
                 except OSError as error:
@@ -1435,6 +1435,7 @@ class RoadSurveyApp:
             log_application_error(f"Gagal memuat foto {full_path}", type(e), e, e.__traceback__)
             self.canvas.delete("all")
             self.canvas.create_text(200, 100, text=f"Gagal memuat gambar:\n{str(e)}", fill="white", font=("Arial", 11, "bold"))
+            self._loading_survey_fields = False
             return
 
         self.lbl_photo_info.configure(text=f"Foto: {self.current_photo_idx + 1} / {len(self.photo_list)} | {filename}")
@@ -1588,6 +1589,7 @@ class RoadSurveyApp:
             self.current_selections[key] = ""
             for opt, btn in self.buttons_ref[key].items():
                 btn.configure(bg="#ffffff", fg="#203040", relief=tk.RAISED)
+        self.save_current_survey()
 
     def tampilkan_preview_popup(self):
         popup = tk.Toplevel(self.root)
