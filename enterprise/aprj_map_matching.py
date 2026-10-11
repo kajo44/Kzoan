@@ -86,6 +86,18 @@ def _project_to_segment(lon, lat, a, b):
     return math.hypot(px, py), t, plon, plat, _bearing(a[1], a[0], b[1], b[0])
 
 
+def _point_at_distance(coords, target_m):
+    """Koordinat lon/lat pada jarak kumulatif dari vertex pertama."""
+    remaining = max(0.0, float(target_m))
+    for a, b in zip(coords, coords[1:]):
+        length = _distance_m(a[1], a[0], b[1], b[0])
+        if remaining <= length or (a, b) == (coords[-2], coords[-1]):
+            fraction = 0.0 if length <= 0 else min(1.0, remaining / length)
+            return (a[0] + (b[0]-a[0])*fraction, a[1] + (b[1]-a[1])*fraction)
+        remaining -= length
+    return coords[-1]
+
+
 class MapMatchingEngine:
     def __init__(self, app_root):
         self.app_root = Path(app_root)
@@ -191,15 +203,18 @@ class MapMatchingEngine:
 
     def _prepare_segments(self, roads, progress=None):
         segments, grid = [], defaultdict(list)
+        road_id_counts = defaultdict(int)
         for road_id, road_name, coords in roads:
+            road_id_counts[str(road_id)] += 1
+            unique_road_id = str(road_id) if road_id_counts[str(road_id)] == 1 else f"{road_id}__{road_id_counts[str(road_id)]}"
             cumulative = 0.0
             for idx, (a, b) in enumerate(zip(coords, coords[1:])):
                 length = _distance_m(a[1], a[0], b[1], b[0])
                 if length <= 0.01:
                     continue
                 seg = {
-                    "road_id": str(road_id), "road_name": str(road_name),
-                    "a": a, "b": b, "seg_index": idx, "offset_m": cumulative,
+                    "road_id": unique_road_id, "road_name": str(road_name),
+                    "a": a, "b": b, "road_coords": coords, "seg_index": idx, "offset_m": cumulative,
                     "length_m": length, "bearing_deg": _bearing(a[1], a[0], b[1], b[0]),
                 }
                 seg_index = len(segments)
@@ -230,6 +245,15 @@ class MapMatchingEngine:
         segments, grid = self._prepare_segments(roads, progress)
         photos, scanned = self._index_photos(photo_root, progress, cancel_event)
         gps_photos = [p for p in photos if p["latitude"] is not None and p["longitude"] is not None]
+        no_gps = []
+        for photo in photos:
+            if photo["latitude"] is None or photo["longitude"] is None:
+                row = dict(photo)
+                row.update({"road_id": "", "road_name": "", "sta_m": None, "sta_km": None,
+                            "sta_latitude": None, "sta_longitude": None, "distance_m": None,
+                            "road_bearing_deg": None, "heading_difference_deg": None,
+                            "match_status": "Tidak ada koordinat GPS"})
+                no_gps.append(row)
         gps_photos.sort(key=lambda p: (p["taken_at"] is None, p["taken_at"] or datetime.max, p["photo_path"].casefold()))
 
         # Kecepatan antar-foto berurutan hanya dinilai bila kedua waktu tersedia dan
@@ -240,7 +264,7 @@ class MapMatchingEngine:
             if i == 0:
                 continue
             prev = gps_photos[i-1]
-            if photo["taken_at"] and prev["taken_at"]:
+            if photo["taken_at"] and prev["taken_at"] and photo["source_folder"] == prev["source_folder"]:
                 dt = (photo["taken_at"] - prev["taken_at"]).total_seconds()
                 if 0 < dt <= max_time_gap_s:
                     dist = _distance_m(prev["latitude"], prev["longitude"], photo["latitude"], photo["longitude"])
@@ -275,9 +299,10 @@ class MapMatchingEngine:
                     continue
                 # STA along the digitized line, from its first vertex toward its last.
                 sta_exact = seg["offset_m"] + fraction * seg["length_m"]
-                sta_bucket = int(round(sta_exact / interval_m) * interval_m)
+                sta_bucket = int(math.floor(sta_exact / interval_m) * interval_m)
+                sta_lon, sta_lat = _point_at_distance(seg["road_coords"], sta_bucket)
                 score = distance + ((heading_diff or 0.0) / 180.0) * min(radius_m, 50.0)
-                scored.append((score, distance, heading_diff, seg, sta_exact, sta_bucket, plon, plat, bearing))
+                scored.append((score, distance, heading_diff, seg, sta_exact, sta_bucket, sta_lon, sta_lat, bearing))
             result = dict(photo)
             result.update({
                 "road_id": "", "road_name": "", "sta_m": None, "sta_km": None,
@@ -319,7 +344,7 @@ class MapMatchingEngine:
             if row["match_status"] == "Cocok - perlu verifikasi" and row["photo_path"] not in chosen_paths:
                 row["match_status"] = "Kandidat tidak terpilih: STA sudah memiliki foto lebih baik"
         self.last_results = chosen
-        self.last_diagnostics = results
+        self.last_diagnostics = results + no_gps
         self.last_root = str(Path(photo_root).resolve())
         self.last_road_file = str(Path(road_file).resolve())
         self.last_interval = interval_m
