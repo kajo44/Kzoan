@@ -6,6 +6,12 @@ on:
       - crg_aprj
     paths:
       - "enterprise/**/*.py"
+      - "enterprise/**/*.txt"
+      - "enterprise/**/*.md"
+      - "enterprise/**/*.bat"
+      - "enterprise/.gitignore"
+      - "APRJ_PORTABLE_GUIDE.txt"
+      - "APRJ_NEXT_DEVELOPMENT_MAP.txt"
       - ".github/workflows/aprj-syntax.yml"
   workflow_dispatch:
 
