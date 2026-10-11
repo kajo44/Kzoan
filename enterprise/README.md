@@ -4,7 +4,7 @@ Dokumen ini adalah panduan kerja untuk aplikasi di folder `enterprise`. Nama ent
 
 ## 1. Ringkasan aplikasi
 
-APRJ Next menggabungkan empat area kerja:
+APRJ Next menggabungkan lima area kerja:
 
 - **Survei Jalan** — memuat foto, mengisi/meninjau atribut survei, menyimpan catatan lokal, dan mengekspor Excel.
 - **Rekayasa AI** — mengimpor dataset berlabel, melatih model lokal, memeriksa checkpoint, dan menjalankan prediksi untuk ditinjau petugas.
