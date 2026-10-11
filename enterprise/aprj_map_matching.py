@@ -398,6 +398,7 @@ class MapMatchingEngine:
                 "match_status": "Tidak ada ruas dalam radius", "_candidates": scored,
             })
             if speed_bad:
+                result["_candidates"] = []
                 result["match_status"] = f"Ditolak: kecepatan antar-foto {speed:.1f} km/jam melebihi batas"
             elif scored:
                 best = scored[0]
