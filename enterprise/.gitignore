@@ -18,3 +18,15 @@ config/
 bin/exiftool.exe
 bin/exiftool
 bin/exiftool_files/
+
+# Test and editor caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Transient local diagnostics/temp files
+*.log
+*.tmp
+*.temp
