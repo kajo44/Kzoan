@@ -82,14 +82,18 @@ class DatabaseManager:
         }
 
     def test_connection(self):
+        conn = None
         try:
             import psycopg2
-            with psycopg2.connect(**self.config) as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("SELECT 1")
+            conn = psycopg2.connect(**self.config)
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT 1")
             return True, "Koneksi PostgreSQL berhasil."
         except Exception as exc:
             return False, str(exc)
+        finally:
+            if conn is not None:
+                conn.close()
 
     def sync_to_postgres(self, survey_records):
         """Sinkronisasi idempoten: rekaman foto yang sama diperbarui, bukan ditambah terus."""
