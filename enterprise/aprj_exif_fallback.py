@@ -99,6 +99,7 @@ def _read_one(path):
     except Exception:
         # File rusak/tidak didukung: tetap kembalikan SourceFile agar proses batch lanjut.
         # Exception sengaja dibatasi per-file, bukan membatalkan seluruh batch.
+        pass
     return item
 
 
