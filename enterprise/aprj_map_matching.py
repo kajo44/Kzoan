@@ -156,12 +156,17 @@ class MapMatchingEngine:
                     heading = None
             except (TypeError, ValueError):
                 heading = None
+            heading_ref = str(item.get("GPSImgDirectionRef", "") or "").upper()
+            # Bearing ruas dihitung sebagai arah utara sejati; heading magnetik tidak
+            # dibandingkan langsung tanpa deklinasi magnetik lokal.
+            if heading_ref == "M":
+                heading = None
             taken = _parse_time(item.get("DateTimeOriginal") or item.get("CreateDate"))
             rows.append({
                 "photo_path": path, "photo_name": Path(path).name,
                 "source_folder": str(Path(path).parent), "latitude": lat, "longitude": lon,
                 "taken_at": taken, "taken_at_text": taken.isoformat(sep=" ") if taken else "",
-                "camera_heading_deg": heading, "heading_ref": item.get("GPSImgDirectionRef", ""),
+                "camera_heading_deg": heading, "heading_ref": heading_ref,
                 "file_size_bytes": self._safe_stat_size(path),
                 "match_status": "Belum dicocokkan",
             })
