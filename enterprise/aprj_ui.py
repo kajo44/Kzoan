@@ -1399,8 +1399,8 @@ class RoadSurveyApp:
             return
         if not messagebox.askyesno(
             "Konfirmasi Relokasi",
-            f"Ditemukan {len(missing_records)} record foto hilang yang memiliki SHA-256.\\n"
-            f"Folder pencarian:\\n{new_root}\\n\\n"
+            f"Ditemukan {len(missing_records)} record foto hilang yang memiliki SHA-256.\n"
+            f"Folder pencarian:\n{new_root}\n\n"
             "APRJ akan memindai file gambar, menghitung hash, lalu memperbarui path yang cocok. "
             "File tidak akan disalin, dipindahkan, atau dihapus. Lanjutkan?",
             parent=self.root,
@@ -1495,7 +1495,7 @@ class RoadSurveyApp:
             self.ai_training_status.set("Relokasi dataset gagal.")
             messagebox.showerror(
                 "Relokasi Dataset Gagal",
-                f"{error}\\n\\nManifest tidak dijamin berubah jika penyimpanan gagal.",
+                f"{error}\n\nManifest tidak dijamin berubah jika penyimpanan gagal.",
                 parent=self.root,
             )
             return
@@ -1506,11 +1506,11 @@ class RoadSurveyApp:
         )
         messagebox.showinfo(
             "Relokasi Dataset Selesai",
-            f"Folder gambar dipindai: {result['scanned']}\\n"
-            f"Hash berhasil dihitung: {result['hashed']}\\n"
-            f"Path dipulihkan: {result['updated']}\\n"
-            f"Hash duplikat/ambigu diabaikan: {result['ambiguous']}\\n"
-            f"File yang gagal dibaca: {result['errors']}\\n\\n"
+            f"Folder gambar dipindai: {result['scanned']}\n"
+            f"Hash berhasil dihitung: {result['hashed']}\n"
+            f"Path dipulihkan: {result['updated']}\n"
+            f"Hash duplikat/ambigu diabaikan: {result['ambiguous']}\n"
+            f"File yang gagal dibaca: {result['errors']}\n\n"
             "Foto tidak disalin, dipindahkan, atau dihapus. Record yang tidak cocok tetap berstatus hilang.",
             parent=self.root,
         )
