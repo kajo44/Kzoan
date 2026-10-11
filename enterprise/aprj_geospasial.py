@@ -333,6 +333,10 @@ class GeospatialEngine:
             self.app_root / "bin" / "exiftool.exe",
             self.app_root / "bin" / "exiftool",
             self.app_root / "bin" / "exiftool_files" / "exiftool.exe",
+            # PyInstaller 6 default onedir layout, retained as a defensive fallback.
+            self.app_root / "_internal" / "bin" / "exiftool.exe",
+            self.app_root / "_internal" / "bin" / "exiftool",
+            self.app_root / "_internal" / "bin" / "exiftool_files" / "exiftool.exe",
         ]
         for candidate in candidates:
             if candidate.is_file():
