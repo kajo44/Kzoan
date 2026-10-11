@@ -2,6 +2,14 @@
 
 Dokumen ini adalah panduan kerja untuk aplikasi di folder `enterprise`. Nama entry point resmi adalah `aprj_main.py`; jangan menjalankan file compatibility lama.
 
+## Visualisasi Peta Online
+
+Tab **Integrasi Online** menyediakan dua alur visualisasi:
+- **Visualisasikan Hasil Aplikasi**: menampilkan titik STA/foto hasil Map Matching beserta geometri ruas dari berkas jalan yang dipilih.
+- **Impor Data untuk Peta**: membaca geometri garis KML/KMZ/GeoJSON/JSON atau titik dari CSV yang memiliki kolom `latitude/longitude` (juga `lat/lon`).
+
+Aplikasi menghasilkan HTML lokal dan membukanya pada browser. Basemap Leaflet/OpenStreetMap dan pustaka peta dimuat dari internet; tanpa internet, peta dasar mungkin tidak tampil. Berkas foto dan data sumber tidak diunggah otomatis, tetapi koordinat dan atribut yang dipetakan dapat terlihat pada browser lokal. Periksa ketentuan penggunaan OpenStreetMap sebelum penggunaan produksi.
+
 ## 1. Ringkasan aplikasi
 
 APRJ Next menggabungkan lima area kerja:
