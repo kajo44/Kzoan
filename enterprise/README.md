@@ -37,7 +37,7 @@ SQLite lokal tetap menjadi penyimpanan lokal. PostgreSQL merupakan integrasi onl
 
 - Salin **seluruh** folder `dist\\APRJ_Next`, bukan hanya EXE.
 - Pastikan folder aplikasi dapat ditulisi oleh pengguna karena database, log, model, dan hasil disimpan di folder aplikasi.
-- Modul Geospasial Jalan memerlukan ExifTool di folder `bin` pada lokasi aplikasi yang sesuai.
+- ExifTool lokal adalah pembaca metadata utama. Jika tidak tersedia saat menjalankan source, pembacaan EXIF dasar memakai Pillow sebagai fallback; format/tag khusus mungkin hanya terbaca dengan ExifTool.
 - PostgreSQL hanya diperlukan untuk fungsi online; survei lokal tidak mensyaratkan server PostgreSQL.
 
 Daftar dependency Python langsung berada di `requirements.txt`; dependency untuk proses build berada di `requirements-build.txt`.
@@ -46,11 +46,11 @@ Daftar dependency Python langsung berada di `requirements.txt`; dependency untuk
 
 1. Unduh/checkout repository dan buka folder `enterprise`.
 2. Pastikan `bin\\exiftool.exe` tersedia. Script akan mencoba menyalinnya dari `C:\\Tools\\ExifTool` bila ditemukan.
-3. Jalankan `build_portable.bat`.
+3. Jalankan `build_portable.bat`. Script memeriksa sintaks dan menjalankan tes regresi sebelum pemaketan.
 4. Jika build selesai, buka `dist\\APRJ_Next\\APRJ_Next.exe`.
 5. Uji aplikasi terlebih dahulu di komputer pembangun, lalu salin seluruh folder `dist\\APRJ_Next` ke komputer lain dan lakukan smoke test kembali.
 
-Build script melakukan pemeriksaan sintaks dan pemaketan PyInstaller. Itu **bukan** pengganti pengujian GUI, uji portable di komputer lain, atau validasi akurasi.
+Build script menjalankan pemeriksaan sintaks dan `unittest` sebelum pemaketan PyInstaller. Tes otomatis hanya mencakup fungsi yang diuji; itu **bukan** pengganti pengujian GUI, uji portable di komputer lain, atau validasi akurasi.
 
 ## 4. Alur penggunaan utama
 
@@ -137,7 +137,7 @@ Fitur **CLEAN** ditujukan untuk cache yang dikenali; jangan menggunakannya sebag
 - **Build gagal saat pip install** — periksa koneksi, ruang disk, dan versi Python; baca pesan error sebelum mengulang.
 - **Aplikasi tidak dapat menyimpan** — pastikan folder aplikasi dapat ditulisi dan periksa `logs\\application_errors.log`.
 - **AI tidak siap/prediksi gagal** — periksa checkpoint, label, jumlah kelas, dan kompatibilitas model.
-- **Foto tidak punya koordinat** — pastikan metadata GPS tersedia dan dapat dibaca ExifTool.
+- **Foto tidak punya koordinat** — pastikan foto menyimpan GPS EXIF. Jika ExifTool tidak tersedia, Pillow mencoba membaca tag EXIF dasar; format/tag yang tidak didukung dapat memerlukan ExifTool.
 - **Tidak ada kandidat foto** — cek radius, koordinat KML/GeoJSON, metadata GPS, dan apakah jalur foto yang dipilih benar.
 - **Ekspor tidak cocok dengan template resmi** — cocokkan kolom terhadap template resmi yang berlaku; jangan menganggap format bantu otomatis memenuhi semua ketentuan.
 
@@ -153,6 +153,7 @@ Fitur **CLEAN** ditujukan untuk cache yang dikenali; jangan menggunakannya sebag
 | `aprj_training_engine.py` | Training dan inferensi |
 | `aprj_pkrms.py` | Utilitas audit/ekspor PKRMS |
 | `aprj_geospasial.py` | Indeks GPS, geometri, STA, pencocokan, CSV |
+| `aprj_exif_fallback.py` | Fallback EXIF dasar berbasis Pillow jika ExifTool tidak tersedia |
 | `requirements.txt` | Dependency runtime |
 | `requirements-build.txt` | Dependency runtime + PyInstaller |
 | `build_portable.bat` | Build portable Windows |
