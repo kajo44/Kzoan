@@ -1,8 +1,11 @@
 import csv
 import hashlib
+import importlib.metadata
+import importlib.util
 import json
 import logging
 import os
+import platform
 import random
 import shutil
 import sqlite3
@@ -359,28 +362,102 @@ class RoadSurveyApp:
         )
 
     def show_help_and_diagnostics(self):
-        try:
-            import road_condition_gui as ai
-            torch = ai.torch
-            torch_status = f"PyTorch {torch.__version__}"
-            cuda_status = (
-                f"CUDA tersedia ({torch.cuda.get_device_name(0)})"
-                if torch.cuda.is_available()
-                else "CUDA tidak tersedia; AI memakai CPU"
-            )
-        except Exception:
-            torch_status = "Runtime PyTorch eksternal tidak aktif/tidak dimuat"
-            cuda_status = "Mode survei dasar dan multi-task mandiri"
+        """Tampilkan panduan dan pemeriksaan kemampuan runtime tanpa dependensi eksternal."""
+        checks = []
+        checks.append(("Aplikasi", str(APP_NAME)))
+        checks.append(("Python", sys.version.split()[0] + " (" + platform.architecture()[0] + ")"))
+        checks.append(("Sistem operasi", platform.platform()))
+        checks.append(("Mode", "Portable/frozen" if getattr(sys, "frozen", False) else "Python source"))
+        checks.append(("Folder aplikasi", str(APP_ROOT)))
+        checks.append(("SQLite", sqlite3.sqlite_version))
 
-        messagebox.showinfo(
-            f"Panduan dan Diagnostik {APP_NAME}",
-            f"Lokasi aplikasi:\n{APP_ROOT}\n\n"
-            f"{torch_status}\n{cuda_status}\n\n"
-            "Alur penggunaan: Pilih folder foto -> Muat Foto -> Isi/Koreksi Penilaian -> Ekspor Excel.\n"
-            "Shortcut Keyboard: Panah Kiri (Sebelumnya), Panah Kanan (Simpan & Selanjutnya), Ctrl+R (Reset).\n\n"
-            f"Log Kesalahan: {APP_ERROR_LOG}",
-            parent=self.root,
+        packages = (
+            ("Pillow", "PIL"), ("openpyxl", "openpyxl"), ("PyTorch", "torch"),
+            ("piexif", "piexif"), ("psycopg2", "psycopg2"), ("PyInstaller", "PyInstaller"),
         )
+        for label, module_name in packages:
+            try:
+                available = importlib.util.find_spec(module_name) is not None
+            except (ImportError, ValueError, ModuleNotFoundError):
+                available = False
+            if not available:
+                checks.append((label, "Tidak tersedia"))
+                continue
+            try:
+                dist_name = {"PIL": "Pillow", "PyInstaller": "pyinstaller"}.get(module_name, module_name)
+                version = importlib.metadata.version(dist_name)
+                checks.append((label, f"Tersedia (versi {version})"))
+            except importlib.metadata.PackageNotFoundError:
+                checks.append((label, "Tersedia (versi tidak terdeteksi)"))
+            except Exception as error:
+                checks.append((label, f"Tersedia; versi gagal dibaca: {error}"))
+
+        exiftool_candidates = (
+            APP_ROOT / "bin" / "exiftool.exe",
+            APP_ROOT / "bin" / "exiftool",
+            APP_ROOT / "_internal" / "bin" / "exiftool.exe",
+            APP_ROOT / "_internal" / "bin" / "exiftool",
+        )
+        exiftool = next((path for path in exiftool_candidates if path.is_file()), None)
+        checks.append(("ExifTool", str(exiftool) if exiftool else
+                       "Tidak ditemukan; fitur pembacaan EXIF batch/map matching tidak tersedia"))
+        checks.append(("Log kesalahan", str(APP_ERROR_LOG)))
+        checks.append(("Database survei", str(SURVEY_DB_PATH)))
+        checks.append(("Folder log dapat ditulis", "Ya" if os.access(APP_ROOT, os.W_OK) else
+                       "Tidak pasti; bila portable di Program Files, gunakan folder yang dapat ditulis"))
+
+        lines = [
+            f"DIAGNOSTIK {APP_NAME}",
+            "=" * 60,
+            *[f"{label}: {value}" for label, value in checks],
+            "",
+            "PANDUAN RINGKAS",
+            "1. Survei foto: pilih folder -> muat foto -> tinjau/koreksi nilai -> ekspor Excel.",
+            "2. Map Matching: pilih folder foto dan geometri ruas; atur interval STA, radius, arah, dan waktu.",
+            "3. Verifikasi hasil Map Matching terhadap geometri dan kondisi lapangan sebelum digunakan secara resmi.",
+            "4. Visualisasi online membutuhkan internet untuk pustaka Leaflet dan tile OpenStreetMap.",
+            "5. Training AI membutuhkan dataset berlabel yang memadai; model tidak otomatis akurat hanya karena training berhasil.",
+            "6. Jika terjadi kegagalan, simpan pesan dan periksa log kesalahan di atas.",
+            "",
+            "BATASAN",
+            "- Status dependensi yang tersedia tidak membuktikan seluruh fitur sudah diuji.",
+            "- CUDA bersifat opsional; jika tidak tersedia, training/prediksi dapat lebih lambat pada CPU.",
+            "- Jangan menghapus database, dataset, checkpoint, foto sumber, atau hasil ekspor saat membersihkan cache.",
+        ]
+        report = "\n".join(lines)
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"Panduan & Diagnostik {APP_NAME}")
+        dialog.geometry("850x620")
+        dialog.transient(self.root)
+        dialog.columnconfigure(0, weight=1)
+        dialog.rowconfigure(0, weight=1)
+        frame = ttk.Frame(dialog, padding=10)
+        frame.grid(row=0, column=0, sticky="nsew")
+        frame.columnconfigure(0, weight=1)
+        frame.rowconfigure(0, weight=1)
+        text_box = tk.Text(frame, wrap="word", height=24, width=100)
+        scroll = ttk.Scrollbar(frame, orient="vertical", command=text_box.yview)
+        text_box.configure(yscrollcommand=scroll.set)
+        text_box.grid(row=0, column=0, sticky="nsew")
+        scroll.grid(row=0, column=1, sticky="ns")
+        text_box.insert("1.0", report)
+        text_box.configure(state="disabled")
+        buttons = ttk.Frame(frame)
+        buttons.grid(row=1, column=0, columnspan=2, sticky="e", pady=(8, 0))
+
+        def copy_report():
+            try:
+                dialog.clipboard_clear()
+                dialog.clipboard_append(report)
+                dialog.update_idletasks()
+                messagebox.showinfo("Diagnostik", "Laporan diagnostik disalin ke clipboard.", parent=dialog)
+            except tk.TclError as error:
+                log_application_error("Menyalin laporan diagnostik", type(error), error, error.__traceback__)
+                messagebox.showerror("Diagnostik", f"Gagal menyalin laporan: {error}", parent=dialog)
+
+        ttk.Button(buttons, text="Salin Laporan", command=copy_report).pack(side="left", padx=(0, 8))
+        ttk.Button(buttons, text="Tutup", command=dialog.destroy).pack(side="left")
+
 
     def build_ui(self):
         self.notebook = ttk.Notebook(self.root)
@@ -2727,6 +2804,18 @@ def main():
         root.mainloop()
     except Exception as error:
         log_application_error("Startup Aplikasi", type(error), error, error.__traceback__)
+        detail = (
+            f"APRJ Next tidak dapat dimulai.\n\n{type(error).__name__}: {error}\n\n"
+            f"Log kesalahan: {APP_ERROR_LOG}\n\n"
+            "Periksa versi Python dan dependensi, lalu jalankan install_aprj.bat untuk pemeriksaan."
+        )
+        try:
+            if root is not None:
+                messagebox.showerror("APRJ Next - Startup Gagal", detail, parent=root)
+            else:
+                sys.stderr.write(detail + "\n")
+        except Exception:
+            sys.stderr.write(detail + "\n")
         if root is not None:
             try:
                 root.destroy()
