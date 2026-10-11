@@ -157,7 +157,7 @@ class RoadSurveyApp:
         self.ai_batch_var = tk.StringVar(value="4")
         self.ai_epochs_var = tk.StringVar(value="10")
         self.ai_training_mode_var = tk.StringVar(
-            value="Lanjutkan model aktif" if SURVEY_AI_MODEL.is_file() else "Latih ulang dari awal"
+            value="Lanjutkan dari model aktif" if SURVEY_AI_MODEL.is_file() else "Latih ulang dari awal"
         )
         self.ai_training_status = tk.StringVar(value="Pilih export survei Excel untuk memulai.")
         self.staged_training_records = []
@@ -813,16 +813,26 @@ class RoadSurveyApp:
         ttk.Label(training_frame, text="Epoch:").grid(row=0, column=4, padx=5)
         ttk.Entry(training_frame, textvariable=self.ai_epochs_var, width=5).grid(row=0, column=5)
         
-        ttk.Button(training_frame, text="Mulai Training", command=self.start_survey_training).grid(row=0, column=6, padx=5, pady=5)
-        
+        ttk.Label(training_frame, text="Mode:").grid(row=0, column=6, padx=(8, 2), pady=5, sticky="e")
+        self.training_mode_combo = ttk.Combobox(
+            training_frame,
+            textvariable=self.ai_training_mode_var,
+            values=("Latih ulang dari awal", "Lanjutkan dari model aktif"),
+            state="readonly",
+            width=25,
+        )
+        self.training_mode_combo.grid(row=0, column=7, padx=3, pady=5)
+
+        ttk.Button(training_frame, text="Mulai Training", command=self.start_survey_training).grid(row=0, column=8, padx=5, pady=5)
+
         self.cancel_training_button = ttk.Button(training_frame, text="Batalkan", command=self.cancel_survey_training, state="disabled")
-        self.cancel_training_button.grid(row=0, column=7, padx=5)
-        
-        ttk.Button(training_frame, text="Buka Folder AI", command=self.open_ai_folder).grid(row=0, column=8, padx=5)
+        self.cancel_training_button.grid(row=0, column=9, padx=5)
+
+        ttk.Button(training_frame, text="Buka Folder AI", command=self.open_ai_folder).grid(row=0, column=10, padx=5)
         ttk.Button(training_frame, text="Periksa Kesiapan Model", command=self.check_ai_inference_readiness).grid(row=1, column=0, columnspan=3, padx=5, pady=5, sticky="w")
         ttk.Button(training_frame, text="Prediksi Foto Aktif", command=self.predict_current_photo).grid(row=1, column=3, padx=5, pady=5, sticky="w")
-        
-        ttk.Label(training_frame, textvariable=self.ai_training_status, wraplength=900).grid(row=2, column=0, columnspan=9, sticky="w", padx=5, pady=5)
+
+        ttk.Label(training_frame, textvariable=self.ai_training_status, wraplength=900).grid(row=2, column=0, columnspan=11, sticky="w", padx=5, pady=5)
         self.refresh_training_dataset_view()
 
     def refresh_training_dataset_view(self):
@@ -1000,19 +1010,36 @@ class RoadSurveyApp:
             )
             return
 
+        training_mode = self.ai_training_mode_var.get()
+        if training_mode == "Lanjutkan dari model aktif" and not SURVEY_AI_MODEL.is_file():
+            messagebox.showwarning(
+                "Model Aktif Tidak Ditemukan",
+                "Pilih 'Latih ulang dari awal' karena belum ada checkpoint model aktif.",
+                parent=self.root,
+            )
+            return
+        if training_mode == "Latih ulang dari awal" and SURVEY_AI_MODEL.is_file():
+            if not messagebox.askyesno(
+                "Konfirmasi Training Ulang",
+                "Training dari awal akan membuat bobot baru. Model aktif hanya akan diganti "
+                "jika training berhasil; salinan model sebelumnya disimpan sebagai .bak. Lanjutkan?",
+                parent=self.root,
+            ):
+                return
+
         self.training_cancel_event.clear()
         self.training_running = True
         self.cancel_training_button.configure(state="normal")
         self.ai_training_status.set("Training dimulai. Jangan tutup aplikasi selama proses berjalan.")
         worker = threading.Thread(
             target=self._training_worker,
-            args=(records, epochs, batch_size, self.ai_device_var.get()),
+            args=(records, epochs, batch_size, self.ai_device_var.get(), training_mode),
             daemon=True,
             name="APRJ-AI-Training",
         )
         worker.start()
 
-    def _training_worker(self, records, epochs, batch_size, device_name):
+    def _training_worker(self, records, epochs, batch_size, device_name, training_mode):
         try:
             run_name = datetime.now().strftime("%Y%m%d_%H%M%S")
             run_dir = SURVEY_AI_RUNS / run_name
@@ -1030,6 +1057,7 @@ class RoadSurveyApp:
                 epochs=epochs,
                 batch_size=batch_size,
                 device_name=device_name,
+                training_mode=training_mode,
                 cancel_event=self.training_cancel_event,
                 progress_callback=report,
             )
@@ -1069,8 +1097,9 @@ class RoadSurveyApp:
             f"Loss validasi terbaik: {val_text}\n"
             f"Perangkat: {summary['device']}\n"
             f"Waktu: {summary['elapsed_seconds']} detik\n\n"
-            "Model adalah CNN yang dilatih dari awal, bukan model pretrained. "
-            "Tinjau metrik dan hasil prediksi sebelum digunakan untuk keputusan survei.",
+            f"Mode: {summary.get('training_mode', 'tidak tercatat')}. "
+            "Pada mode lanjutkan, bobot model aktif dipakai sebagai titik awal tetapi optimizer "
+            "diinisialisasi ulang. Tinjau metrik dan hasil prediksi sebelum digunakan untuk keputusan survei.",
             parent=self.root,
         )
 
