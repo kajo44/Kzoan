@@ -28,33 +28,16 @@ def _require_torch():
 
 
 def _make_model(task_classes, width_count):
-    class SurveyMultiTaskNet(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.features = nn.Sequential(
-                nn.Conv2d(3, 32, 3, padding=1),
-                nn.ReLU(inplace=True),
-                nn.MaxPool2d(2),
-                nn.Conv2d(32, 64, 3, padding=1),
-                nn.ReLU(inplace=True),
-                nn.MaxPool2d(2),
-                nn.Conv2d(64, 128, 3, padding=1),
-                nn.ReLU(inplace=True),
-                nn.AdaptiveAvgPool2d(1),
-            )
-            self.heads = nn.ModuleDict({
-                key: nn.Linear(128, len(values))
-                for key, values in task_classes.items()
-            })
-            self.width_head = nn.Linear(128, width_count)
+    """Gunakan satu definisi arsitektur agar training dan inferensi kompatibel."""
+    _require_torch()
+    from aprj_ai_model import SurveyMultiTaskNet, SURVEY_WIDTH_FIELDS as MODEL_WIDTH_FIELDS
 
-        def forward(self, images):
-            features = self.features(images).flatten(1)
-            return {
-                "classes": {key: head(features) for key, head in self.heads.items()},
-                "widths": self.width_head(features),
-            }
-    return SurveyMultiTaskNet()
+    if int(width_count) != len(MODEL_WIDTH_FIELDS):
+        raise ValueError(
+            "Jumlah field lebar tidak cocok dengan arsitektur model utama "
+            f"({width_count} diterima; {len(MODEL_WIDTH_FIELDS)} diperlukan)."
+        )
+    return SurveyMultiTaskNet(task_classes)
 
 
 def _image_tensor(path, image_size):
