@@ -64,6 +64,7 @@ python -m PyInstaller --noconfirm --clean --windowed --onedir ^
   --hidden-import database ^
   --hidden-import ai_model ^
   --hidden-import pkrms_utils ^
+  --hidden-import APRJ_v2 ^
   --hidden-import psycopg2 ^
   --hidden-import psycopg2._psycopg ^
   main.py
