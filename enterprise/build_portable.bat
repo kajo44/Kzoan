@@ -42,7 +42,7 @@ if errorlevel 1 goto :fail
 
 echo.
 echo [3/3] Memeriksa sintaks aplikasi...
-python -m py_compile main.py APRJ_v2.py core.py database.py ai_model.py pkrms_utils.py
+python -m py_compile main.py APRJ_v2.py core.py database.py ai_model.py pkrms_utils.py training_engine.py
 if errorlevel 1 goto :fail
 
 echo.
@@ -54,6 +54,7 @@ python -m PyInstaller --noconfirm --clean --windowed --onedir ^
   --collect-all openpyxl ^
   --collect-all torch ^
   --hidden-import ai_model ^
+  --hidden-import training_engine ^
   --hidden-import database ^
   --hidden-import pkrms_utils ^
   --hidden-import psycopg2 ^
