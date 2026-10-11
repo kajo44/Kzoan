@@ -604,7 +604,7 @@ class RoadSurveyApp:
         panel = ttk.LabelFrame(self.pkrms_tab, text="Modul Geospasial Jalan — Pencocokan Foto dan STA")
         panel.grid(row=5, column=0, sticky="nsew", pady=(12, 4))
         panel.columnconfigure(1, weight=1)
-        panel.rowconfigure(3, weight=1)
+        panel.rowconfigure(4, weight=1)
         self.pkrms_tab.rowconfigure(5, weight=1)
 
         ttk.Label(panel, text="Folder foto:").grid(row=0, column=0, sticky="w", padx=6, pady=4)
