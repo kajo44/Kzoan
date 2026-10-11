@@ -658,7 +658,7 @@ class RoadSurveyApp:
     def start_survey_training(self):
         if self.training_running:
             return
-        messagebox.info("Informasi", "Fitur training multi-task memerlukan library PyTorch dan modul pendukung yang lengkap.")
+        messagebox.showinfo("Training AI belum tersedia", "Antarmuka pengelolaan dataset tersedia, tetapi pipeline training belum diimplementasikan pada file ini. Jangan anggap model AI sudah terlatih.")
 
     def cancel_survey_training(self):
         self.training_cancel_event.set()
@@ -798,7 +798,7 @@ class RoadSurveyApp:
         else:
             self.ai_mode_enabled = True
             self.ai_mode_button.configure(text="MODE AI: ON", bg="#148f77")
-            self.ai_status.set("AI aktif (mode mandiri)")
+            self.ai_status.set("Mode AI aktif; inferensi belum terhubung")
 
     def render_canvas_image(self):
         if self.original_image is None:
