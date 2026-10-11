@@ -26,8 +26,9 @@ GRID_DEG = 0.002
 
 
 def _safe_name(value):
-    value = re.sub(r'[<>:"/\\\\|?*\\x00-\\x1f]+', "_", str(value or "").strip())
-    value = re.sub(r"\s+", " ", value).strip(" .")
+    value = str(value or "").strip()
+    value = "".join("_" if c in '<>:"/\\\\|?*' or ord(c) < 32 else c for c in value)
+    value = " ".join(value.split())
     return (value or "Tanpa_Nama")[:100]
 
 
@@ -256,20 +257,34 @@ class MapMatchingEngine:
                 no_gps.append(row)
         gps_photos.sort(key=lambda p: (p["taken_at"] is None, p["taken_at"] or datetime.max, p["photo_path"].casefold()))
 
-        # Kecepatan antar-foto berurutan hanya dinilai bila kedua waktu tersedia dan
-        # selisih waktu kecil; gap besar tidak boleh ditafsirkan sebagai kecepatan pasti.
-        for i, photo in enumerate(gps_photos):
+        # Periksa tetangga sebelum DAN sesudah dalam folder sumber yang sama.
+        # Gap waktu besar atau timestamp yang tidak ada tidak ditafsirkan sebagai kecepatan pasti.
+        by_folder = defaultdict(list)
+        for photo in gps_photos:
             photo["speed_from_prev_kmh"] = None
+            photo["speed_to_next_kmh"] = None
             photo["time_gap_prev_s"] = None
-            if i == 0:
-                continue
-            prev = gps_photos[i-1]
-            if photo["taken_at"] and prev["taken_at"] and photo["source_folder"] == prev["source_folder"]:
-                dt = (photo["taken_at"] - prev["taken_at"]).total_seconds()
-                if 0 < dt <= max_time_gap_s:
-                    dist = _distance_m(prev["latitude"], prev["longitude"], photo["latitude"], photo["longitude"])
-                    photo["time_gap_prev_s"] = dt
-                    photo["speed_from_prev_kmh"] = dist / dt * 3.6
+            photo["time_gap_next_s"] = None
+            by_folder[photo["source_folder"]].append(photo)
+        for sequence in by_folder.values():
+            sequence.sort(key=lambda p: (p["taken_at"] is None, p["taken_at"] or datetime.max, p["photo_path"].casefold()))
+            for i, photo in enumerate(sequence):
+                for neighbor_index, speed_key, gap_key, reverse in (
+                    (i-1, "speed_from_prev_kmh", "time_gap_prev_s", True),
+                    (i+1, "speed_to_next_kmh", "time_gap_next_s", False),
+                ):
+                    if neighbor_index < 0 or neighbor_index >= len(sequence):
+                        continue
+                    neighbor = sequence[neighbor_index]
+                    if not photo["taken_at"] or not neighbor["taken_at"]:
+                        continue
+                    dt = ((photo["taken_at"] - neighbor["taken_at"]).total_seconds()
+                          if reverse else (neighbor["taken_at"] - photo["taken_at"]).total_seconds())
+                    if 0 < dt <= max_time_gap_s:
+                        dist = _distance_m(photo["latitude"], photo["longitude"],
+                                           neighbor["latitude"], neighbor["longitude"])
+                        photo[gap_key] = dt
+                        photo[speed_key] = dist / dt * 3.6
 
         # Candidate matching photo -> segment, then collapse to nearest STA interval.
         best_by_station = {}
@@ -285,7 +300,8 @@ class MapMatchingEngine:
                 for dy in range(-radius_cells, radius_cells+1):
                     candidates.update(grid.get((cx+dx, cy+dy), ()))
             scored = []
-            speed = photo["speed_from_prev_kmh"]
+            speeds = [v for v in (photo["speed_from_prev_kmh"], photo["speed_to_next_kmh"]) if v is not None]
+            speed = max(speeds) if speeds else None
             speed_bad = bool(use_speed and speed is not None and speed > max_speed_kmh)
             for seg_idx in candidates:
                 seg = segments[seg_idx]
@@ -360,7 +376,7 @@ class MapMatchingEngine:
             "latitude", "longitude", "camera_heading_deg", "road_id", "road_name",
             "projected_sta_m", "sta_m", "sta_km", "sta_latitude", "sta_longitude",
             "distance_m", "road_bearing_deg", "heading_difference_deg",
-            "speed_from_prev_kmh", "time_gap_prev_s", "match_status",
+            "speed_from_prev_kmh", "speed_to_next_kmh", "time_gap_prev_s", "time_gap_next_s", "match_status",
         ]
         with open(destination, "w", newline="", encoding="utf-8-sig") as handle:
             writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
