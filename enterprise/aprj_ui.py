@@ -1174,6 +1174,8 @@ class RoadSurveyApp:
         self.cancel_import_button = ttk.Button(import_controls, text="Batalkan", command=self.cancel_staged_import, state="disabled")
         self.cancel_import_button.pack(side="left", padx=3)
         ttk.Button(import_controls, text="Validasi Dataset", command=self.validate_training_dataset).pack(side="left", padx=3)
+        self.relocate_dataset_button = ttk.Button(import_controls, text="Relokasi Dataset", command=self.relocate_training_dataset)
+        self.relocate_dataset_button.pack(side="left", padx=3)
 
         training_frame = ttk.LabelFrame(self.ai_tab, text="Kontrol Training AI")
         training_frame.grid(row=3, column=0, sticky="ew", pady=5)
@@ -1359,6 +1361,162 @@ class RoadSurveyApp:
         self.ai_training_status.set(
             f"Impor selesai: {added} foto direferensikan tanpa disalin, "
             f"{updated} label foto yang sudah ada diperbarui."
+        )
+
+    @staticmethod
+    def _sha256_file_streaming(path):
+        """Hitung hash file tanpa memuat seluruh foto ke memori."""
+        hasher = hashlib.sha256()
+        with Path(path).open("rb") as source_file:
+            for chunk in iter(lambda: source_file.read(1024 * 1024), b""):
+                hasher.update(chunk)
+        return hasher.hexdigest()
+
+    def relocate_training_dataset(self):
+        """Pulihkan path foto dataset yang hilang tanpa menyalin atau memindahkan file."""
+        if getattr(self, "dataset_relocation_running", False):
+            return
+        new_root = filedialog.askdirectory(
+            title="Pilih folder baru yang berisi foto dataset",
+            mustexist=True,
+        )
+        if not new_root:
+            return
+        missing_records = []
+        for index, record in enumerate(self.training_records):
+            current_path = self.resolve_training_record_path(record)
+            if not current_path.is_file():
+                digest = str(record.get("sha256", "")).strip().lower()
+                if digest:
+                    missing_records.append((index, digest))
+        if not missing_records:
+            messagebox.showinfo(
+                "Relokasi Dataset",
+                "Tidak ada foto hilang dengan SHA-256 yang tercatat. "
+                "Foto tanpa hash tidak dapat dicocokkan secara aman secara otomatis.",
+                parent=self.root,
+            )
+            return
+        if not messagebox.askyesno(
+            "Konfirmasi Relokasi",
+            f"Ditemukan {len(missing_records)} record foto hilang yang memiliki SHA-256.\\n"
+            f"Folder pencarian:\\n{new_root}\\n\\n"
+            "APRJ akan memindai file gambar, menghitung hash, lalu memperbarui path yang cocok. "
+            "File tidak akan disalin, dipindahkan, atau dihapus. Lanjutkan?",
+            parent=self.root,
+        ):
+            return
+
+        self.dataset_relocation_running = True
+        self.relocate_dataset_button.configure(state="disabled")
+        self.ai_training_status.set("Relokasi dataset dimulai; memindai folder foto...")
+        worker = threading.Thread(
+            target=self._relocate_training_dataset_worker,
+            args=(Path(new_root), dict(missing_records)),
+            daemon=True,
+            name="APRJ-Dataset-Relocation",
+        )
+        worker.start()
+
+    def _relocate_training_dataset_worker(self, root_path, missing_records):
+        """Cari hash yang dibutuhkan di thread latar agar UI tidak membeku."""
+        image_extensions = {
+            ".jpg", ".jpeg", ".jpe", ".png", ".tif", ".tiff", ".bmp",
+            ".webp", ".heic", ".heif", ".jfif",
+        }
+        wanted_hashes = {digest for _, digest in missing_records.values()} if isinstance(missing_records, dict) else set()
+        # Mapping index -> digest diterima dari UI; bangun set hash secara eksplisit.
+        wanted_hashes = {digest for digest in missing_records.values()}
+        matches = {}
+        ambiguous = set()
+        scanned = 0
+        hashed = 0
+        errors = 0
+        try:
+            for directory, dirnames, filenames in os.walk(root_path):
+                dirnames.sort()
+                for filename in sorted(filenames):
+                    path = Path(directory) / filename
+                    if path.suffix.lower() not in image_extensions:
+                        continue
+                    scanned += 1
+                    try:
+                        digest = self._sha256_file_streaming(path)
+                        hashed += 1
+                    except OSError:
+                        errors += 1
+                        continue
+                    if digest not in wanted_hashes:
+                        continue
+                    if digest in matches:
+                        ambiguous.add(digest)
+                        # Deterministik: path pertama dalam urutan traversal tetap menjadi kandidat,
+                        # tetapi hash duplikat tidak akan digunakan untuk memperbarui manifest.
+                    else:
+                        matches[digest] = str(path.resolve())
+                    if scanned % 100 == 0:
+                        self.root.after(
+                            0,
+                            lambda count=scanned, total=hashed: self.ai_training_status.set(
+                                f"Relokasi: memindai {count} file gambar; hash dihitung {total}..."
+                            ),
+                        )
+            safe_matches = {
+                digest: path for digest, path in matches.items()
+                if digest not in ambiguous
+            }
+            updated = 0
+            ambiguous_count = len(ambiguous)
+            for record_index, digest in missing_records.items():
+                replacement = safe_matches.get(digest)
+                if not replacement:
+                    continue
+                record = self.training_records[record_index]
+                record["source_path"] = replacement
+                record["relocated_at"] = datetime.now().isoformat(timespec="seconds")
+                updated += 1
+            if updated:
+                self.save_training_manifest()
+            result = {
+                "updated": updated,
+                "missing": len(missing_records) - updated - sum(
+                    1 for digest in ambiguous if digest in wanted_hashes
+                ),
+                "ambiguous": ambiguous_count,
+                "scanned": scanned,
+                "hashed": hashed,
+                "errors": errors,
+            }
+            self.root.after(0, lambda payload=result: self._relocation_finished(payload))
+        except Exception as error:
+            self.root.after(0, lambda err=error: self._relocation_finished(error=err))
+
+    def _relocation_finished(self, result=None, error=None):
+        self.dataset_relocation_running = False
+        if hasattr(self, "relocate_dataset_button"):
+            self.relocate_dataset_button.configure(state="normal")
+        if error is not None:
+            self.ai_training_status.set("Relokasi dataset gagal.")
+            messagebox.showerror(
+                "Relokasi Dataset Gagal",
+                f"{error}\\n\\nManifest tidak dijamin berubah jika penyimpanan gagal.",
+                parent=self.root,
+            )
+            return
+        self.refresh_training_dataset_view()
+        self.ai_training_status.set(
+            f"Relokasi selesai: {result['updated']} path dipulihkan; "
+            f"{result['ambiguous']} hash duplikat diabaikan."
+        )
+        messagebox.showinfo(
+            "Relokasi Dataset Selesai",
+            f"Folder gambar dipindai: {result['scanned']}\\n"
+            f"Hash berhasil dihitung: {result['hashed']}\\n"
+            f"Path dipulihkan: {result['updated']}\\n"
+            f"Hash duplikat/ambigu diabaikan: {result['ambiguous']}\\n"
+            f"File yang gagal dibaca: {result['errors']}\\n\\n"
+            "Foto tidak disalin, dipindahkan, atau dihapus. Record yang tidak cocok tetap berstatus hilang.",
+            parent=self.root,
         )
 
     def validate_training_dataset(self):
