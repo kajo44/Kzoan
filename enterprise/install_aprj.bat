@@ -44,18 +44,24 @@ echo [1/4] Memperbarui pip...
 if errorlevel 1 goto :fail
 
 echo.
-echo [2/4] Memasang semua dependensi dari requirements.txt...
-"%PYTHON_EXE%" -m pip install -r requirements.txt
+echo [2/5] Memasang dependensi runtime dan build dari requirements-build.txt...
+echo File ini menyertakan requirements.txt dan PyInstaller agar build_portable.bat dapat digunakan.
+"%PYTHON_EXE%" -m pip install -r requirements-build.txt
 if errorlevel 1 goto :fail
 
 echo.
-echo [3/4] Memverifikasi PyTorch dan dependensi...
-"%PYTHON_EXE%" -c "import torch; import PIL; import openpyxl; import psycopg2; import PyInstaller; print('PyTorch:',torch.__version__); print('CUDA tersedia:',torch.cuda.is_available()); print('Pillow:',PIL.__version__); print('openpyxl:',openpyxl.__version__); print('psycopg2:',psycopg2.__version__); print('PyInstaller:',PyInstaller.__version__)"
+echo [3/5] Memverifikasi dependensi utama...
+"%PYTHON_EXE%" -c "import torch; import PIL; import openpyxl; import piexif; import psycopg2; import PyInstaller; print('PyTorch:',torch.__version__); print('CUDA tersedia:',torch.cuda.is_available()); print('Pillow:',PIL.__version__); print('openpyxl:',openpyxl.__version__); print('piexif:',piexif.__version__ if hasattr(piexif,'__version__') else 'tersedia'); print('psycopg2:',psycopg2.__version__); print('PyInstaller:',PyInstaller.__version__)"
 if errorlevel 1 goto :fail
 
 echo.
-echo [4/4] Memeriksa sintaks dan menguji arsitektur AI...
-"%PYTHON_EXE%" -m py_compile aprj_main.py aprj_ui.py aprj_core.py aprj_database.py aprj_ai_model.py aprj_pkrms.py aprj_training_engine.py
+echo [4/5] Memeriksa sintaks seluruh modul Python...
+"%PYTHON_EXE%" -m compileall -q .
+if errorlevel 1 goto :fail
+
+echo.
+echo [5/5] Menjalankan tes regresi...
+"%PYTHON_EXE%" -m unittest discover -s tests -v
 if errorlevel 1 goto :fail
 
 "%PYTHON_EXE%" -c "import torch; from aprj_ai_model import SurveyMultiTaskNet; m=SurveyMultiTaskNet({'uji':['kelas_a','kelas_b']}); y=m(torch.zeros(1,3,224,224)); assert 'classes' in y and 'widths' in y; print('Tes forward model: BERHASIL')"
@@ -71,8 +77,8 @@ echo.
 echo Untuk membangun aplikasi portable:
 echo   build_portable.bat
 echo.
-echo Catatan: ini memverifikasi instalasi dan forward-pass model,
-echo bukan bukti akurasi model atau training pada dataset nyata.
+echo Catatan: tes otomatis memeriksa regresi fungsi yang tercakup.
+echo Ini bukan bukti akurasi model atau validitas seluruh data lapangan.
 echo ============================================================
 pause
 exit /b 0
