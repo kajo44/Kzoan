@@ -1,4 +1,4 @@
-APRJ - APLIKASI SURVEI JALAN PORTABLE
+APRJ NEXT - APLIKASI SURVEI JALAN PORTABLE
 =====================================
 
 BUILD
@@ -6,8 +6,8 @@ BUILD
 1. Gunakan Windows 10/11 64-bit.
 2. Instal Python 3.11 64-bit dari python.org dan pastikan Tcl/Tk ikut terpasang.
 3. Buka folder enterprise, lalu jalankan build_portable.bat.
-4. Hasil build berada di dist\APRJ\APRJ.exe.
-5. Untuk memindahkan aplikasi, salin seluruh folder dist\APRJ, bukan hanya EXE.
+4. Hasil build berada di dist\APRJ_Next\APRJ_Next.exe.
+5. Untuk memindahkan aplikasi, salin seluruh folder dist\APRJ_Next, bukan hanya EXE.
 6. Build script memasang PyTorch CPU. GPU CUDA hanya dapat digunakan pada lingkungan
    yang memang mempunyai instalasi PyTorch/CUDA yang cocok; paket portable ini CPU.
 
@@ -21,7 +21,7 @@ ANTARMUKA TERPADU
   klasifikasi lama, dan ekspor rekap dataset klasifikasi.
 - Integrasi Online: ekspor skrip awal Google Colab, uji koneksi PostgreSQL,
   dan sinkronisasi catatan survei ke PostgreSQL.
-- Entry point build adalah main.py yang memanggil APRJ_v2.py.
+- Entry point resmi build adalah aprj_main.py; UI utama berada di aprj_ui.py. Modul bernama lama dipertahankan sebagai compatibility shim untuk mencegah pemutusan impor lama.
 
 ALUR TRAINING AI
 ----------------
