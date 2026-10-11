@@ -777,7 +777,7 @@ class RoadSurveyApp:
                 row.get("taken_at_text","") or "—", row.get("match_status",""),
             ))
         self.map_matching_status.set(
-            f"Selesai: {len(self.map_matching_engine.last_diagnostics)} foto ber-GPS/diagnostik; "
+            f"Selesai: {len(self.map_matching_engine.last_diagnostics)} foto dalam diagnostik CSV; "
             f"{len(rows)} foto terpilih pada STA. Tinjau arah ruas dan hasil di peta sebelum dipakai resmi."
         )
 
