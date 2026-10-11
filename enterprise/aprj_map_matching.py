@@ -474,8 +474,11 @@ class MapMatchingEngine:
             if str(row.get("match_status", "")).startswith("Ditolak:"):
                 continue
             key = (row["road_id"], row["sta_m"])
-            rank = (float(row.get("distance_m") if row.get("distance_m") is not None else math.inf),
-                    row["photo_path"].casefold())
+            distance_score = float(row.get("distance_m") if row.get("distance_m") is not None else math.inf)
+            heading_diff = row.get("heading_difference_deg")
+            if heading_diff is not None:
+                distance_score += (float(heading_diff) / 180.0) * min(radius_m, 50.0)
+            rank = (distance_score, row["photo_path"].casefold())
             previous = best_by_station.get(key)
             if previous is None or rank < previous[0]:
                 best_by_station[key] = (rank, row)
