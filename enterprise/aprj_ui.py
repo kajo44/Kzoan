@@ -1357,7 +1357,8 @@ class RoadSurveyApp:
         self.cancel_import_button.configure(state="disabled")
         self.refresh_training_dataset_view()
         self.ai_training_status.set(
-            f"Impor selesai: {added} foto baru, {updated} label foto yang sudah ada diperbarui."
+            f"Impor selesai: {added} foto direferensikan tanpa disalin, "
+            f"{updated} label foto yang sudah ada diperbarui."
         )
 
     def validate_training_dataset(self):
