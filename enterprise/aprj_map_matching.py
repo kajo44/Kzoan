@@ -493,8 +493,9 @@ class MapMatchingEngine:
         rows = self.last_diagnostics if include_diagnostics else self.last_results
         fields = [
             "photo_name", "photo_path", "source_folder", "file_size_bytes", "taken_at_text",
-            "latitude", "longitude", "camera_heading_deg", "road_id", "road_name",
-            "projected_sta_m", "sta_m", "sta_km", "sta_latitude", "sta_longitude",
+            "latitude", "longitude", "camera_heading_deg",
+            "baseline_road_id", "baseline_road_name", "baseline_sta_m", "baseline_distance_m",
+            "road_id", "road_name", "projected_sta_m", "sta_m", "sta_km", "sta_latitude", "sta_longitude", "hmm_score",
             "distance_m", "road_bearing_deg", "heading_difference_deg",
             "speed_from_prev_kmh", "speed_to_next_kmh", "time_gap_prev_s", "time_gap_next_s", "match_status",
         ]
