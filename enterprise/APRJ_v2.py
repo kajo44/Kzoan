@@ -4,6 +4,7 @@ import logging
 import os
 import random
 import shutil
+import sqlite3
 import sys
 import threading
 import traceback
@@ -34,6 +35,7 @@ SURVEY_AI_RUNS = SURVEY_AI_ROOT / "training_runs"
 SURVEY_AI_MODELS = SURVEY_AI_ROOT / "models"
 SURVEY_AI_MODEL = SURVEY_AI_MODELS / "survey_multi_task_model.pth"
 SURVEY_AI_CACHE = SURVEY_AI_ROOT / "cache"
+SURVEY_DB_PATH = APP_ROOT / "data" / "survey.sqlite3"
 
 
 def log_application_error(context, error_type, error, error_traceback):
@@ -113,6 +115,49 @@ def create_survey_model(torch_module, task_classes):
     return SurveyMultiTaskNet()
 
 
+
+class SQLiteSurveyStore:
+    """Penyimpanan survei lokal persisten berbasis SQLite."""
+
+    def __init__(self, db_path):
+        self.db_path = Path(db_path)
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(str(self.db_path), timeout=30) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS survey_records (
+                    photo_key TEXT PRIMARY KEY,
+                    folder_source TEXT NOT NULL DEFAULT '',
+                    survey_data TEXT NOT NULL,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+    def load_all(self):
+        with sqlite3.connect(str(self.db_path), timeout=30) as conn:
+            rows = conn.execute("SELECT photo_key, survey_data FROM survey_records").fetchall()
+        result = {}
+        for key, payload in rows:
+            try:
+                data = json.loads(payload)
+                if isinstance(data, dict):
+                    result[key] = data
+            except (TypeError, json.JSONDecodeError):
+                continue
+        return result
+
+    def save(self, photo_key, data):
+        payload = json.dumps(data, ensure_ascii=False)
+        with sqlite3.connect(str(self.db_path), timeout=30) as conn:
+            conn.execute("""
+                INSERT INTO survey_records(photo_key, folder_source, survey_data, updated_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(photo_key) DO UPDATE SET
+                    folder_source=excluded.folder_source,
+                    survey_data=excluded.survey_data,
+                    updated_at=CURRENT_TIMESTAMP
+            """, (str(photo_key), str(data.get("folder", "")), payload))
+
+
 class RoadSurveyApp:
     def __init__(self, root):
         self.root = root
@@ -135,7 +180,9 @@ class RoadSurveyApp:
         self.photo_folder = ""
         self.photo_list = []
         self.current_photo_idx = -1
+        self.survey_store = SQLiteSurveyStore(SURVEY_DB_PATH)
         self.survey_data = {}
+        self._stored_survey_records = self.survey_store.load_all()
         
         self.ai_mode_enabled = False
         self.ai_resources = None
@@ -172,6 +219,17 @@ class RoadSurveyApp:
         self.current_selections = {key: "" for key in self.options_config.keys()}
         
         self.build_ui()
+        self.root.protocol("WM_DELETE_WINDOW", self.close_application)
+
+    def photo_storage_key(self, filename):
+        """Kunci stabil agar nama foto sama dari folder berbeda tidak bertabrakan."""
+        return os.path.normcase(os.path.abspath(os.path.join(self.photo_folder, filename)))
+
+    def close_application(self):
+        try:
+            self.root.destroy()
+        except tk.TclError:
+            pass
 
     def handle_tk_callback_exception(self, error_type, error, error_traceback):
         log_application_error("Kesalahan antarmuka", error_type, error, error_traceback)
@@ -671,7 +729,12 @@ class RoadSurveyApp:
             return
 
         self.photo_folder = folder
-        valid_exts = (".png", ".jpg", ".jpeg", ".bmp")
+        root_key = os.path.normcase(os.path.abspath(folder))
+        self.survey_data = {
+            Path(key).name: data for key, data in self._stored_survey_records.items()
+            if os.path.normcase(os.path.abspath(str(data.get("folder", Path(key).parent)))) == root_key
+        }
+        valid_exts = (".png", ".jpg", ".jpeg", ".bmp", ".webp")
         try:
             self.photo_list = [f for f in os.listdir(folder) if f.lower().endswith(valid_exts)]
         except OSError as error:
@@ -832,7 +895,11 @@ class RoadSurveyApp:
             "lebar_perkerasan": self.var_lebar_perkerasan.get()
         }
         current_data.update(self.current_selections)
+        current_data["folder"] = self.photo_folder
         self.survey_data[filename] = current_data
+        storage_key = self.photo_storage_key(filename)
+        self.survey_store.save(storage_key, current_data)
+        self._stored_survey_records[storage_key] = current_data.copy()
 
         if self.current_photo_idx < len(self.photo_list) - 1:
             self.current_photo_idx += 1
