@@ -1,3 +1,4 @@
+import csv
 import hashlib
 import json
 import logging
@@ -8,6 +9,8 @@ import sqlite3
 import sys
 import threading
 import traceback
+import tempfile
+import webbrowser
 import uuid
 import zipfile
 from datetime import datetime
@@ -1256,22 +1259,44 @@ class RoadSurveyApp:
             messagebox.showerror("PKRMS", f"Audit gagal:\n{error}", parent=self.root)
 
     def build_online_tab(self):
-        """Integrasi cloud/Colab dan sinkronisasi PostgreSQL dari frontend lama."""
+        """Integrasi online: visualisasi peta, Colab, dan sinkronisasi PostgreSQL."""
         self.online_tab.columnconfigure(0, weight=1)
         ttk.Label(
             self.online_tab,
-            text="Integrasi Online, Google Colab, dan Database",
+            text="Integrasi Online, Visualisasi Peta, dan Database",
             font=("Segoe UI", 15, "bold"),
         ).grid(row=0, column=0, sticky="w", pady=(0, 4))
         ttk.Label(
             self.online_tab,
-            text="Fitur ini membutuhkan koneksi internet dan layanan eksternal. "
-                 "Aplikasi survei lokal tetap dapat digunakan secara offline.",
+            text="Peta menggunakan OpenStreetMap melalui internet. Data diproses lokal menjadi HTML; "
+                 "foto dan dataset tidak diunggah otomatis ke layanan peta.",
             wraplength=1000,
         ).grid(row=1, column=0, sticky="w", pady=(0, 12))
 
+        map_frame = ttk.LabelFrame(self.online_tab, text="Visualisasi Peta Online")
+        map_frame.grid(row=2, column=0, sticky="ew", pady=6)
+        map_frame.columnconfigure(0, weight=1)
+        ttk.Label(
+            map_frame,
+            text="Tampilkan hasil Map Matching APRJ atau impor geometri KML/KMZ/GeoJSON maupun CSV "
+                 "yang memiliki kolom latitude/longitude. Peta dibuka di browser default.",
+            wraplength=950,
+        ).grid(row=0, column=0, columnspan=3, sticky="w", padx=8, pady=(8, 5))
+        ttk.Button(
+            map_frame, text="Visualisasikan Hasil Aplikasi",
+            command=self.online_visualize_app_results,
+        ).grid(row=1, column=0, sticky="w", padx=8, pady=6)
+        ttk.Button(
+            map_frame, text="Impor Data untuk Peta…",
+            command=self.online_import_visualization_data,
+        ).grid(row=1, column=1, sticky="w", padx=8, pady=6)
+        self.online_map_status = tk.StringVar(value="Pilih hasil aplikasi atau berkas geospasial untuk divisualisasikan.")
+        ttk.Label(
+            map_frame, textvariable=self.online_map_status, wraplength=950, justify="left",
+        ).grid(row=2, column=0, columnspan=3, sticky="w", padx=8, pady=(0, 8))
+
         colab_frame = ttk.LabelFrame(self.online_tab, text="Google Colab")
-        colab_frame.grid(row=2, column=0, sticky="ew", pady=6)
+        colab_frame.grid(row=3, column=0, sticky="ew", pady=6)
         ttk.Label(
             colab_frame,
             text="Buat skrip awal untuk menyiapkan Google Drive dan lingkungan Colab. "
@@ -1285,7 +1310,7 @@ class RoadSurveyApp:
         ).grid(row=1, column=0, sticky="w", padx=8, pady=8)
 
         db_frame = ttk.LabelFrame(self.online_tab, text="Sinkronisasi PostgreSQL")
-        db_frame.grid(row=3, column=0, sticky="ew", pady=6)
+        db_frame.grid(row=4, column=0, sticky="ew", pady=6)
         fields = [
             ("Host", "db_host", "localhost"),
             ("Port", "db_port", "5432"),
@@ -1315,7 +1340,167 @@ class RoadSurveyApp:
         ttk.Label(
             self.online_tab, textvariable=self.online_status,
             wraplength=1000, justify="left",
-        ).grid(row=4, column=0, sticky="w", pady=8)
+        ).grid(row=5, column=0, sticky="w", pady=8)
+
+    def _online_open_geojson(self, feature_collection, title, status_message):
+        """Buat peta Leaflet HTML lokal; basemap/tiles memerlukan internet."""
+        import json
+
+        if not feature_collection.get("features"):
+            raise ValueError("Tidak ada fitur berkoordinat yang dapat ditampilkan.")
+        safe_data = json.dumps(feature_collection, ensure_ascii=False, allow_nan=False).replace("</", "<\\/")
+        safe_title = json.dumps(str(title), ensure_ascii=False).replace("</", "<\\/")
+        html_text = """<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>APRJ - Peta Online</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>html,body,#map{height:100%;margin:0} .map-title{position:absolute;z-index:1000;top:10px;left:55px;background:white;padding:8px 12px;border-radius:5px;box-shadow:0 1px 5px #777;font:14px sans-serif;max-width:70vw}</style></head>
+<body><div class="map-title" id="map-title"></div><div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const data = __DATA__;
+const title = __TITLE__;
+document.getElementById('map-title').textContent = title;
+const map = L.map('map');
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+function popupText(feature) {
+  const box = document.createElement('div');
+  const props = feature.properties || {};
+  const rows = Object.entries(props).filter(([k,v]) => v !== null && v !== undefined && String(v) !== '')
+    .slice(0, 18);
+  for (const [key, value] of rows) {
+    const line = document.createElement('div');
+    const strong = document.createElement('strong'); strong.textContent = key + ': ';
+    line.appendChild(strong); line.appendChild(document.createTextNode(String(value)));
+    box.appendChild(line);
+  }
+  return box;
+}
+const layer = L.geoJSON(data, {
+  style: f => ({color: (f.properties && f.properties.kind === 'road') ? '#2471a3' : '#148f77', weight: 4}),
+  pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+    radius: 6, color: '#145a32', weight: 1, fillColor: '#2ecc71', fillOpacity: 0.85
+  }),
+  onEachFeature: (feature, lyr) => lyr.bindPopup(popupText(feature))
+}).addTo(map);
+if (layer.getLayers().length) map.fitBounds(layer.getBounds().pad(0.08), {maxZoom: 17});
+else map.setView([-0.5, 101.5], 7);
+</script></body></html>"""
+        html_text = html_text.replace("__DATA__", safe_data).replace("__TITLE__", safe_title)
+        output_dir = Path(tempfile.gettempdir()) / "APRJ_Online_Maps"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        target = output_dir / "aprj_online_map.html"
+        target.write_text(html_text, encoding="utf-8")
+        if not webbrowser.open(target.resolve().as_uri()):
+            raise RuntimeError(f"Browser tidak dapat dibuka otomatis. Buka berkas ini secara manual: {target}")
+        self.online_map_status.set(f"{status_message}\nPeta HTML lokal: {target}\nBasemap memerlukan internet; data sumber tetap lokal.")
+
+    def online_visualize_app_results(self):
+        """Visualisasikan titik hasil Map Matching dan geometri ruas yang dipilih."""
+        try:
+            engine = self.map_matching_engine
+            if not engine or not engine.last_results:
+                messagebox.showinfo(
+                    "Visualisasi Peta",
+                    "Hasil Map Matching belum tersedia. Jalankan Map Matching terlebih dahulu, "
+                    "atau gunakan tombol impor data untuk memetakan berkas lain.",
+                    parent=self.root,
+                )
+                return
+            features = []
+            road_path = self.map_matching_road_file_var.get().strip()
+            if road_path and Path(road_path).is_file():
+                for road_id, road_name, coords in pkrms_utils.load_road_segments(road_path):
+                    features.append({
+                        "type": "Feature",
+                        "geometry": {"type": "LineString", "coordinates": [[lon, lat] for lon, lat in coords]},
+                        "properties": {"kind": "road", "road_id": road_id, "road_name": road_name},
+                    })
+            plotted = 0
+            for row in engine.last_results:
+                lat, lon = row.get("sta_latitude"), row.get("sta_longitude")
+                if lat is None or lon is None:
+                    lat, lon = row.get("latitude"), row.get("longitude")
+                if lat is None or lon is None:
+                    continue
+                properties = {
+                    "kind": "photo/STA", "photo": row.get("photo_name", ""),
+                    "road": row.get("road_name", ""), "road_id": row.get("road_id", ""),
+                    "STA_m": row.get("sta_m", ""), "jarak_m": row.get("distance_m", ""),
+                    "arah_selisih_derajat": row.get("heading_difference_deg", ""),
+                    "waktu": row.get("taken_at_text", ""), "status": row.get("match_status", ""),
+                    "foto_sumber": row.get("photo_path", ""),
+                }
+                features.append({
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [float(lon), float(lat)]},
+                    "properties": properties,
+                })
+                plotted += 1
+            self._online_open_geojson(
+                {"type": "FeatureCollection", "features": features},
+                "APRJ - Hasil Map Matching",
+                f"Hasil aplikasi: {plotted} titik; {len(features) - plotted} fitur garis jalan.",
+            )
+        except Exception as error:
+            log_application_error("Visualisasi hasil aplikasi", type(error), error, error.__traceback__)
+            messagebox.showerror("Visualisasi Peta", str(error), parent=self.root)
+
+    def online_import_visualization_data(self):
+        """Impor geometri garis atau CSV berkoordinat untuk visualisasi, tanpa mengubah sumber."""
+        filename = filedialog.askopenfilename(
+            parent=self.root, title="Pilih data untuk visualisasi online",
+            filetypes=[
+                ("Data geospasial/CSV", "*.kml *.kmz *.geojson *.json *.csv"),
+                ("Semua berkas", "*.*"),
+            ],
+        )
+        if not filename:
+            return
+        path = Path(filename)
+        try:
+            features = []
+            if path.suffix.lower() in {".kml", ".kmz", ".geojson", ".json"}:
+                for road_id, road_name, coords in pkrms_utils.load_road_segments(path):
+                    features.append({
+                        "type": "Feature",
+                        "geometry": {"type": "LineString", "coordinates": [[float(lon), float(lat)] for lon, lat in coords]},
+                        "properties": {"kind": "road", "road_id": str(road_id), "road_name": str(road_name)},
+                    })
+            elif path.suffix.lower() == ".csv":
+                with path.open("r", encoding="utf-8-sig", newline="") as handle:
+                    reader = csv.DictReader(handle)
+                    if not reader.fieldnames:
+                        raise ValueError("CSV tidak memiliki header kolom.")
+                    aliases = {name.strip().casefold(): name for name in reader.fieldnames if name}
+                    lat_key = next((aliases[key] for key in ("latitude", "lat", "gpslatitude", "gps_latitude") if key in aliases), None)
+                    lon_key = next((aliases[key] for key in ("longitude", "lon", "lng", "gpslongitude", "gps_longitude") if key in aliases), None)
+                    if not lat_key or not lon_key:
+                        raise ValueError("Kolom koordinat tidak ditemukan. Gunakan header latitude/longitude atau lat/lon.")
+                    for index, row in enumerate(reader, start=1):
+                        try:
+                            lat, lon = float(row[lat_key]), float(row[lon_key])
+                        except (TypeError, ValueError):
+                            continue
+                        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+                            continue
+                        props = {str(k): str(v or "") for k, v in row.items() if k and v}
+                        features.append({
+                            "type": "Feature", "geometry": {"type": "Point", "coordinates": [lon, lat]},
+                            "properties": {"kind": "imported point", **props},
+                        })
+            else:
+                raise ValueError("Format berkas tidak didukung.")
+            self._online_open_geojson(
+                {"type": "FeatureCollection", "features": features},
+                f"APRJ - {path.name}",
+                f"Data impor: {len(features)} fitur dari {path.name}.",
+            )
+        except Exception as error:
+            log_application_error("Impor visualisasi online", type(error), error, error.__traceback__)
+            messagebox.showerror("Visualisasi Peta", str(error), parent=self.root)
 
     def _make_database_manager(self):
         try:
