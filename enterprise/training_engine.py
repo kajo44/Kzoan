@@ -128,6 +128,10 @@ def train_model(records, task_options, width_fields, image_size, checkpoint_path
         raise ValueError("Kurang dari 2 foto memiliki label yang dapat dilatih.")
 
     random.Random(seed).shuffle(usable)
+    random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
     if len(usable) >= 5:
         validation_count = max(1, int(round(len(usable) * 0.2)))
         validation = usable[:validation_count]
