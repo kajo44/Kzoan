@@ -200,8 +200,8 @@ def train_model(records, task_options, width_fields, image_size, checkpoint_path
                     width_targets.append([value if value is not None else 0.0 for value in values])
                     width_masks.append([value is not None for value in values])
                 if width_fields:
-                    target = torch.tensor(list(zip(*width_targets)), dtype=torch.float32, device=device).T
-                    mask = torch.tensor(list(zip(*width_masks)), dtype=torch.bool, device=device).T
+                    target = torch.tensor(width_targets, dtype=torch.float32, device=device).T
+                    mask = torch.tensor(width_masks, dtype=torch.bool, device=device).T
                     if mask.any():
                         losses.append(F.smooth_l1_loss(outputs["widths"][mask], target[mask]))
 
