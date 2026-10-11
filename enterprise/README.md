@@ -5,8 +5,9 @@ Dokumen ini adalah panduan kerja untuk aplikasi di folder `enterprise`. Nama ent
 ## Visualisasi Peta Online
 
 Tab **Integrasi Online** menyediakan dua alur visualisasi:
-- **Visualisasikan Hasil Aplikasi**: menampilkan titik STA/foto hasil Map Matching beserta geometri ruas dari berkas jalan yang dipilih.
+- **Visualisasikan Hasil Aplikasi**: menampilkan titik foto, titik STA, dan geometri ruas dari berkas jalan yang dipilih.
 - **Impor Data untuk Peta**: membaca geometri garis KML/KMZ/GeoJSON/JSON atau titik dari CSV yang memiliki kolom `latitude/longitude` (juga `lat/lon`).
+- **Kontrol layer peta**: gunakan panel layer di kanan atas untuk menyalakan/mematikan **Ruas jalan**, **Titik foto**, **Titik STA**, dan **Skor/kondisi**. Layer skor/kondisi akan berisi fitur yang memiliki atribut kondisi/skor; warna marker adalah indikasi visual sederhana berdasarkan teks/nilai atribut, bukan hasil penilaian resmi.
 
 Aplikasi menghasilkan HTML lokal dan membukanya pada browser. Basemap Leaflet/OpenStreetMap dan pustaka peta dimuat dari internet; tanpa internet, peta dasar mungkin tidak tampil. Berkas foto dan data sumber tidak diunggah otomatis, tetapi koordinat dan atribut yang dipetakan dapat terlihat pada browser lokal. Periksa ketentuan penggunaan OpenStreetMap sebelum penggunaan produksi.
 
