@@ -6,6 +6,7 @@ import piexif
 from PIL import Image
 
 from aprj_exif_fallback import _as_float, _dms_to_decimal, read_metadata_batch
+from aprj_map_matching import MapMatchingEngine
 
 
 class ExifFallbackTests(unittest.TestCase):
@@ -47,6 +48,26 @@ class ExifFallbackTests(unittest.TestCase):
             self.assertAlmostEqual(item["GPSLatitude"], -0.5, places=5)
             self.assertAlmostEqual(item["GPSLongitude"], 101.25, places=5)
             self.assertAlmostEqual(item["GPSImgDirection"], 90.0)
+
+    def test_map_matching_uses_pillow_when_exiftool_is_missing(self):
+        with tempfile.TemporaryDirectory() as temp:
+            photo = Path(temp) / "gps.jpg"
+            image = Image.new("RGB", (8, 8), "white")
+            gps = {
+                piexif.GPSIFD.GPSLatitudeRef: "S",
+                piexif.GPSIFD.GPSLatitude: [(0, 1), (30, 1), (0, 1)],
+                piexif.GPSIFD.GPSLongitudeRef: "E",
+                piexif.GPSIFD.GPSLongitude: [(101, 1), (15, 1), (0, 1)],
+            }
+            image.save(photo, "JPEG", exif=piexif.dump({
+                "0th": {}, "Exif": {}, "GPS": gps, "1st": {}, "thumbnail": None,
+            }))
+            engine = MapMatchingEngine(temp)
+            self.assertIsNone(engine.exiftool)
+            rows = engine._read_batch([photo])
+            self.assertEqual(len(rows), 1)
+            self.assertAlmostEqual(rows[0]["latitude"], -0.5, places=5)
+            self.assertAlmostEqual(rows[0]["longitude"], 101.25, places=5)
 
 
 if __name__ == "__main__":
