@@ -274,34 +274,40 @@ class RoadSurveyAppFrontend:
 
     # --- Metode Prediksi AI Otomatis ---
     def jalankan_prediksi_ai_single(self):
-        """Menjalankan inferensi model AI pada foto aktif saat ini."""
+        """Memeriksa kesiapan inferensi; tidak mengarang hasil tanpa model terlatih."""
         if self.original_image is None:
             messagebox.showwarning("Perhatian", "Belum ada foto yang dimuat di canvas!")
             return
 
-        try:
-            tensor_img = ai_model.image_to_tensor(self.original_image)
-            if tensor_img is None:
-                self.lbl_ai_prediction_status.configure(text="Status AI: Gagal memproses tensor gambar.")
-                return
-
-            # Hasil inferensi / simulasi cerdas
-            prediksi_kondisi = "RUSAK RINGAN"
-            prediksi_tipe = "Aspal"
-            
-            self.ai_latest_prediction = {
-                "perkerasan_kondisi": prediksi_kondisi,
-                "perkerasan_tipe": prediksi_tipe
-            }
-            
-            self.lbl_ai_prediction_status.configure(
-                text=f"AI: {prediksi_tipe} - {prediksi_kondisi} (Akurat)"
+        self.ai_latest_prediction = {}
+        if not ai_model.TORCH_AVAILABLE:
+            self.lbl_ai_prediction_status.configure(text="Status AI: PyTorch belum terpasang.")
+            messagebox.showwarning(
+                "AI belum tersedia",
+                "PyTorch belum terpasang. Pasang dependensi AI lalu bangun ulang aplikasi."
             )
-            messagebox.showinfo("Prediksi AI Selesai", f"Model AI mendeteksi:\n- Tipe: {prediksi_tipe}\n- Kondisi: {prediksi_kondisi}\n\nKlik 'Terapkan Hasil AI' untuk menggunakannya.")
-            
-        except Exception as e:
-            core.log_application_error("Prediksi AI Single", type(e), e, e.__traceback__)
-            messagebox.showerror("Error AI", f"Terjadi kesalahan saat memproses AI: {str(e)}")
+            return
+
+        model_path = core.SURVEY_AI_MODELS / "survey_multi_task_model.pth"
+        if not model_path.is_file():
+            self.lbl_ai_prediction_status.configure(text="Status AI: Model terlatih belum tersedia.")
+            messagebox.showinfo(
+                "Model AI belum tersedia",
+                "Belum ditemukan model terlatih di:\n"
+                f"{model_path}\n\n"
+                "Aplikasi tidak akan menampilkan prediksi palsu. "
+                "Latih/siapkan model yang kompatibel sebelum menjalankan inferensi."
+            )
+            return
+
+        self.lbl_ai_prediction_status.configure(
+            text="Status AI: Berkas model ada, loader inferensi belum diimplementasikan."
+        )
+        messagebox.showwarning(
+            "Inferensi belum terhubung",
+            "Berkas model ditemukan, tetapi loader dan pemetaan output model "
+            "belum diimplementasikan. Tidak ada hasil prediksi yang diterapkan."
+        )
 
     def terapkan_hasil_ai(self):
         """Menerapkan hasil prediksi AI ke form penilaian aktif."""
