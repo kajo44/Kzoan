@@ -27,6 +27,12 @@ def _as_float(value):
         return None
 
 
+def _as_text(value):
+    if isinstance(value, bytes):
+        return value.decode("ascii", errors="replace").strip("\\x00 ")
+    return str(value or "").strip()
+
+
 def _dms_to_decimal(value, reference=""):
     """Konversi derajat-menit-detik EXIF ke derajat desimal."""
     if not isinstance(value, (tuple, list)) or len(value) < 3:
@@ -39,7 +45,7 @@ def _dms_to_decimal(value, reference=""):
         if any(part is None for part in parts):
             return None
         decimal = parts[0] + parts[1] / 60.0 + parts[2] / 3600.0
-    if str(reference or "").upper() in {"S", "W"}:
+    if _as_text(reference).upper() in {"S", "W"}:
         decimal = -abs(decimal)
     return decimal if math.isfinite(decimal) else None
 
@@ -85,7 +91,7 @@ def _read_one(path):
             direction = _as_float(gps.get("GPSImgDirection"))
             if direction is not None:
                 item["GPSImgDirection"] = direction % 360.0
-                item["GPSImgDirectionRef"] = str(gps.get("GPSImgDirectionRef") or "T").upper()
+                item["GPSImgDirectionRef"] = _as_text(gps.get("GPSImgDirectionRef") or "T").upper()
     except (OSError, ValueError, SyntaxError):
         # File rusak/tidak didukung: tetap kembalikan SourceFile agar proses batch lanjut.
         pass
