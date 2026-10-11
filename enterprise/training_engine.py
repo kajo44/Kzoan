@@ -254,6 +254,7 @@ def train_model(records, task_options, width_fields, image_size, checkpoint_path
         "state_dict": model.state_dict(),
         "task_classes": task_classes,
         "width_fields": list(width_fields),
+        "trained_width_fields": [field for field, count in width_observed.items() if count >= 2],
         "image_size": int(image_size),
         "history": history,
         "best_validation_loss": best_loss,
@@ -329,7 +330,9 @@ def predict_image(image_path, checkpoint_path, device_name="Otomatis"):
             "confidence": float(probabilities[index].item()),
         }
     widths = {}
+    trained_width_fields = set(checkpoint.get("trained_width_fields", []))
     for index, field in enumerate(checkpoint.get("width_fields", [])):
-        widths[field] = max(0.0, float(output["widths"][0, index].item()))
+        if field in trained_width_fields:
+            widths[field] = max(0.0, float(output["widths"][0, index].item()))
     return {"classes": predictions, "widths": widths, "device": str(device),
             "model_note": checkpoint.get("model_note", "")}
