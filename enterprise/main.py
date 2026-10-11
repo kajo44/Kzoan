@@ -4,7 +4,6 @@ import tkinter as tk
 import core
 from frontend import RoadSurveyAppFrontend
 
-
 def main():
     core.initialize_portable_dirs()
     root = tk.Tk()
@@ -19,7 +18,6 @@ def main():
         except Exception:
             pass
         raise
-
 
 if __name__ == "__main__":
     main()
