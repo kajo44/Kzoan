@@ -394,7 +394,7 @@ class MapMatchingEngine:
                 "sta_latitude": None, "sta_longitude": None, "distance_m": None,
                 "road_bearing_deg": None, "heading_difference_deg": None,
                 "projected_sta_m": None, "baseline_road_id": "", "baseline_road_name": "",
-                "baseline_sta_m": None, "baseline_distance_m": None, "hmm_score": None,
+                "baseline_sta_m": None, "baseline_distance_m": None, "hmm_log_score": None,
                 "match_status": "Tidak ada ruas dalam radius", "_candidates": scored,
             })
             if speed_bad:
@@ -444,7 +444,7 @@ class MapMatchingEngine:
                             "distance_m": candidate["distance_m"],
                             "road_bearing_deg": candidate["road_bearing_deg"],
                             "heading_difference_deg": candidate["heading_difference_deg"],
-                            "projected_sta_m": candidate["sta_exact_m"], "hmm_score": path_score,
+                            "projected_sta_m": candidate["sta_exact_m"], "hmm_log_score": path_score,
                             "match_status": "Cocok - HMM/Viterbi; perlu verifikasi",
                         })
                 previous_time = None
@@ -495,7 +495,7 @@ class MapMatchingEngine:
             "photo_name", "photo_path", "source_folder", "file_size_bytes", "taken_at_text",
             "latitude", "longitude", "camera_heading_deg",
             "baseline_road_id", "baseline_road_name", "baseline_sta_m", "baseline_distance_m",
-            "road_id", "road_name", "projected_sta_m", "sta_m", "sta_km", "sta_latitude", "sta_longitude", "hmm_score",
+            "road_id", "road_name", "projected_sta_m", "sta_m", "sta_km", "sta_latitude", "sta_longitude", "hmm_log_score",
             "distance_m", "road_bearing_deg", "heading_difference_deg",
             "speed_from_prev_kmh", "speed_to_next_kmh", "time_gap_prev_s", "time_gap_next_s", "match_status",
         ]
