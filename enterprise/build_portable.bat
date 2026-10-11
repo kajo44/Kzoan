@@ -55,12 +55,17 @@ python -m pip install -r requirements-build.txt
 if errorlevel 1 goto :fail
 
 echo.
-echo [2/2] Memeriksa sintaks modul inti...
-python -m py_compile aprj_main.py aprj_ui.py aprj_core.py aprj_database.py aprj_ai_model.py aprj_pkrms.py aprj_training_engine.py aprj_geospasial.py aprj_metadata.py aprj_map_matching.py
+echo [1/3] Memeriksa sintaks seluruh modul dan tes...
+python -m compileall -q aprj_main.py aprj_ui.py aprj_core.py aprj_database.py aprj_ai_model.py aprj_pkrms.py aprj_training_engine.py aprj_geospasial.py aprj_metadata.py aprj_map_matching.py tests
 if errorlevel 1 goto :fail
 
 echo.
-echo Mem-build aplikasi ONEDIR...
+echo [2/3] Menjalankan tes regresi...
+python -m unittest discover -s tests -v
+if errorlevel 1 goto :fail
+
+echo.
+echo [3/3] Mem-build aplikasi ONEDIR...
 python -m PyInstaller --noconfirm --clean --windowed --onedir ^
   --contents-directory "." ^
   --name APRJ_Next ^
