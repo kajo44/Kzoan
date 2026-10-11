@@ -897,19 +897,19 @@ class RoadSurveyApp:
                     if len(row) < 17 or not row[1]:
                         continue
                     labels = {
-                        "lebar_bahu_kiri": str(row[2] or "").strip() or None,
+                        "lebar_bahu_kiri": (str(row[2]).strip() if row[2] is not None and str(row[2]).strip() else None),
                         "bahu_kiri_tipe": str(row[3] or "").strip() or None,
                         "bahu_kiri_kondisi": str(row[4] or "").strip() or None,
-                        "lebar_drainase_kiri": str(row[5] or "").strip() or None,
+                        "lebar_drainase_kiri": (str(row[5]).strip() if row[5] is not None and str(row[5]).strip() else None),
                         "drainase_kiri_tipe": str(row[6] or "").strip() or None,
                         "drainase_kiri_kondisi": str(row[7] or "").strip() or None,
-                        "lebar_perkerasan": str(row[8] or "").strip() or None,
+                        "lebar_perkerasan": (str(row[8]).strip() if row[8] is not None and str(row[8]).strip() else None),
                         "perkerasan_tipe": str(row[9] or "").strip() or None,
                         "perkerasan_kondisi": str(row[10] or "").strip() or None,
-                        "lebar_bahu_kanan": str(row[11] or "").strip() or None,
+                        "lebar_bahu_kanan": (str(row[11]).strip() if row[11] is not None and str(row[11]).strip() else None),
                         "bahu_kanan_tipe": str(row[12] or "").strip() or None,
                         "bahu_kanan_kondisi": str(row[13] or "").strip() or None,
-                        "lebar_drainase_kanan": str(row[14] or "").strip() or None,
+                        "lebar_drainase_kanan": (str(row[14]).strip() if row[14] is not None and str(row[14]).strip() else None),
                         "drainase_kanan_tipe": str(row[15] or "").strip() or None,
                         "drainase_kanan_kondisi": str(row[16] or "").strip() or None,
                     }
@@ -1077,10 +1077,13 @@ class RoadSurveyApp:
             return
 
         self.survey_ai_checkpoint = summary["checkpoint"]
+        best_val = summary.get("best_validation_loss")
+        val_text = f"{best_val:.4f}" if isinstance(best_val, (int, float)) else "tidak tersedia"
         self.ai_training_status.set(
             f"Training selesai pada {summary['device']}. "
             f"Data latih: {summary['training_samples']}; validasi: {summary['validation_samples']}; "
-            f"waktu: {summary['elapsed_seconds']} detik. Model: {summary['checkpoint']}"
+            f"loss validasi terbaik: {val_text}; waktu: {summary['elapsed_seconds']} detik. "
+            f"Model: {summary['checkpoint']}"
         )
         trained_tasks = ", ".join(summary["task_classes"].keys()) or "regresi lebar"
         messagebox.showinfo(
@@ -1089,6 +1092,7 @@ class RoadSurveyApp:
             f"Data latih: {summary['training_samples']}\\n"
             f"Data validasi: {summary['validation_samples']}\\n"
             f"Tugas klasifikasi terlatih: {trained_tasks}\\n"
+            f"Loss validasi terbaik: {val_text}\\n"
             f"Perangkat: {summary['device']}\\n"
             f"Waktu: {summary['elapsed_seconds']} detik\\n\\n"
             "Model adalah CNN yang dilatih dari awal, bukan model pretrained. "
