@@ -10,6 +10,7 @@ from aprj_map_matching import (
     _point_at_distance,
     _project_to_segment,
     _safe_name,
+    _viterbi_decode,
 )
 
 
@@ -34,6 +35,27 @@ class MapMatchingGeometryTests(unittest.TestCase):
         lon, lat = _point_at_distance(coords, 111.2)
         self.assertAlmostEqual(lat, 0.0, places=7)
         self.assertAlmostEqual(lon, 0.001, delta=0.00002)
+
+    def test_viterbi_decodes_complete_candidate_sequence(self):
+        candidates = [
+            [
+                {"distance_m": 2, "heading_difference_deg": 0, "projected_latitude": 0, "projected_longitude": 0.0000, "road_id": "A"},
+                {"distance_m": 5, "heading_difference_deg": 0, "projected_latitude": 0.001, "projected_longitude": 0.0000, "road_id": "B"},
+            ],
+            [
+                {"distance_m": 1, "heading_difference_deg": 0, "projected_latitude": 0, "projected_longitude": 0.0010, "road_id": "A"},
+                {"distance_m": 4, "heading_difference_deg": 0, "projected_latitude": 0.001, "projected_longitude": 0.0010, "road_id": "B"},
+            ],
+            [
+                {"distance_m": 2, "heading_difference_deg": 0, "projected_latitude": 0, "projected_longitude": 0.0020, "road_id": "A"},
+                {"distance_m": 5, "heading_difference_deg": 0, "projected_latitude": 0.001, "projected_longitude": 0.0020, "road_id": "B"},
+            ],
+        ]
+        path, scores = _viterbi_decode(candidates, [(0, 0), (0, 0.001), (0, 0.002)])
+        self.assertEqual(len(path), 3)
+        self.assertTrue(all(index is not None for index in path))
+        self.assertTrue(all(score is not None for score in scores))
+        self.assertEqual([candidates[i][path[i]]["road_id"] for i in range(3)], ["A", "A", "A"])
 
     def test_safe_name_removes_path_separators(self):
         value = _safe_name(r"Road/Name: Segment*1")
