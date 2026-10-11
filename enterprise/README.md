@@ -65,7 +65,7 @@ Jangan menganggap data tersimpan sebelum operasi simpan berhasil. Pertahankan sa
 7. Periksa kesiapan checkpoint, lalu jalankan prediksi pada foto terpilih.
 8. Verifikasi hasil prediksi dan terapkan secara manual. Prediksi bukan hasil survei resmi otomatis.
 
-Manifest baru menggunakan `source_path` untuk foto sumber. Record lama yang masih memakai `image_path` tetap didukung. Jika foto sumber hilang, aplikasi dapat memakai salinan lama yang memang sudah tercatat sebagai fallback; foto baru tidak disalin saat impor.
+Manifest baru menggunakan `source_path` untuk foto sumber. Record lama yang masih memakai `image_path` tetap didukung. Jika foto sumber hilang, aplikasi dapat memakai salinan lama yang memang sudah tercatat sebagai fallback; foto baru tidak disalin saat impor. Tombol **Relokasi Dataset** dapat mencari foto yang hilang pada folder baru secara rekursif, mencocokkan SHA-256, lalu memperbarui `source_path` tanpa menyalin, memindahkan, atau menghapus file. Path yang masih valid tidak diubah. Hash yang ditemukan pada beberapa file dianggap ambigu dan tidak dipakai untuk relokasi otomatis. Relokasi memerlukan SHA-256 pada manifest; record lama tanpa hash harus diimpor ulang dari Excel atau diperbaiki secara manual.
 
 Model yang ada adalah CNN yang dilatih dari awal, bukan model pretrained. Kualitasnya bergantung pada mutu dan representativitas label. Estimasi lebar dari foto tidak boleh dianggap ukuran resmi tanpa kalibrasi dan verifikasi lapangan.
 
