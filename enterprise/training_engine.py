@@ -150,6 +150,7 @@ def train_model(records, task_options, width_fields, image_size, checkpoint_path
     run_dir.mkdir(parents=True, exist_ok=True)
     history = []
     best_loss = float("inf")
+    best_validation_loss = float("inf")
     best_state = None
     width_ranges = {field: (0.0, 30.0) for field in width_fields}
 
@@ -230,6 +231,8 @@ def train_model(records, task_options, width_fields, image_size, checkpoint_path
         score = val_loss if val_loss is not None else train_loss
         if score is None:
             raise RuntimeError("Tidak ada batch yang memiliki label valid untuk dihitung.")
+        if val_loss is not None and val_loss < best_validation_loss:
+            best_validation_loss = val_loss
         if score < best_loss:
             best_loss = score
             best_state = {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
@@ -257,7 +260,7 @@ def train_model(records, task_options, width_fields, image_size, checkpoint_path
         "trained_width_fields": [field for field, count in width_observed.items() if count >= 2],
         "image_size": int(image_size),
         "history": history,
-        "best_validation_loss": best_loss,
+        "best_validation_loss": best_validation_loss if math.isfinite(best_validation_loss) else None,
         "trained_at": datetime.now().isoformat(timespec="seconds"),
         "training_samples": len(training),
         "validation_samples": len(validation),
@@ -273,7 +276,7 @@ def train_model(records, task_options, width_fields, image_size, checkpoint_path
         "training_samples": len(training),
         "validation_samples": len(validation),
         "task_classes": task_classes,
-        "best_validation_loss": best_loss if validation else None,
+        "best_validation_loss": best_validation_loss if math.isfinite(best_validation_loss) else None,
         "elapsed_seconds": round(time.time() - started, 2),
         "device": str(device),
         "history": history,
