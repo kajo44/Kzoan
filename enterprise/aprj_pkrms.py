@@ -77,4 +77,42 @@ def normalize_condition(value):
     if text in {"berat", "parah", "heavy"}:
         return "rusak_berat"
     return None
-s
+
+def create_pkrms_template(destination):
+    """Membuat file template Excel standar PKRMS."""
+    output = openpyxl.Workbook()
+    sheet = output.active
+    sheet.title = "PKRMS_Survey"
+    sheet.append(PKRMS_TEMPLATE_COLUMNS)
+    sheet.append([
+        "Sumatera Barat", "Padang", "", "", "", "SEG-001", 0, 1, 1,
+        datetime.now().date().isoformat(), "contoh.jpg", "aspal",
+        "baik", "baik", "", "baik", "Belum diverifikasi", "",
+        "belum_diukur", "",
+    ])
+    for cell in sheet[1]:
+        cell.font = cell.font.copy(bold=True)
+    output.save(destination)
+
+
+def export_pkrms_report(destination):
+    """Mengekspor rekapitulasi audit dataset ke format laporan PKRMS Excel."""
+    workbook = openpyxl.Workbook()
+    survey = workbook.active
+    survey.title = "PKRMS_Survey"
+    survey.append(PKRMS_TEMPLATE_COLUMNS)
+    counts = {label: 0 for label in CLASSES}
+    for label in CLASSES:
+        target_dir = DATASET_ROOT / label
+        if target_dir.is_dir():
+            for photo in target_dir.rglob("*"):
+                if photo.is_file() and photo.suffix.lower() in IMAGE_EXTENSIONS:
+                    counts[label] += 1
+                    survey.append([
+                        "", "", "", "", "", "",
+                        "", "", "", datetime.now().date().isoformat(),
+                        photo.name, "", label, label, "", label, "Belum diverifikasi",
+                        "", "belum_diukur", "Berkas ditemukan pada folder dataset; label perlu diverifikasi"
+                    ])
+    workbook.save(destination)
+    return counts
