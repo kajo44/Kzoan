@@ -21,7 +21,7 @@ ANTARMUKA TERPADU
   klasifikasi lama, dan ekspor rekap dataset klasifikasi.
 - Integrasi Online: ekspor skrip awal Google Colab, uji koneksi PostgreSQL,
   dan sinkronisasi catatan survei ke PostgreSQL.
-- Entry point resmi build adalah aprj_main.py; UI utama berada di aprj_ui.py. Modul bernama lama dipertahankan sebagai compatibility shim untuk mencegah pemutusan impor lama.
+- Entry point resmi build adalah enterprise/aprj_main.py; UI utama berada di enterprise/aprj_ui.py. File compatibility lama yang tidak diperlukan oleh aplikasi utama telah dikeluarkan dari folder enterprise. Panduan penggunaan rinci berada di enterprise/README.md.
 
 ALUR TRAINING AI
 ----------------
