@@ -22,6 +22,7 @@ from openpyxl.styles import Alignment as XlAlignment, Border, Font as XlFont, Pa
 import ai_model
 import database
 import pkrms_utils
+import training_engine
 
 APP_NAME = "APRJ"
 APP_ROOT = (
@@ -862,6 +863,7 @@ class RoadSurveyApp:
         
         ttk.Button(training_frame, text="Buka Folder AI", command=self.open_ai_folder).grid(row=0, column=8, padx=5)
         ttk.Button(training_frame, text="Periksa Kesiapan Model", command=self.check_ai_inference_readiness).grid(row=1, column=0, columnspan=3, padx=5, pady=5, sticky="w")
+        ttk.Button(training_frame, text="Prediksi Foto Aktif", command=self.predict_current_photo).grid(row=1, column=3, padx=5, pady=5, sticky="w")
         
         ttk.Label(training_frame, textvariable=self.ai_training_status, wraplength=900).grid(row=2, column=0, columnspan=9, sticky="w", padx=5, pady=5)
         self.refresh_training_dataset_view()
@@ -895,14 +897,19 @@ class RoadSurveyApp:
                     if len(row) < 17 or not row[1]:
                         continue
                     labels = {
+                        "lebar_bahu_kiri": str(row[2] or "").strip() or None,
                         "bahu_kiri_tipe": str(row[3] or "").strip() or None,
                         "bahu_kiri_kondisi": str(row[4] or "").strip() or None,
+                        "lebar_drainase_kiri": str(row[5] or "").strip() or None,
                         "drainase_kiri_tipe": str(row[6] or "").strip() or None,
                         "drainase_kiri_kondisi": str(row[7] or "").strip() or None,
+                        "lebar_perkerasan": str(row[8] or "").strip() or None,
                         "perkerasan_tipe": str(row[9] or "").strip() or None,
                         "perkerasan_kondisi": str(row[10] or "").strip() or None,
+                        "lebar_bahu_kanan": str(row[11] or "").strip() or None,
                         "bahu_kanan_tipe": str(row[12] or "").strip() or None,
                         "bahu_kanan_kondisi": str(row[13] or "").strip() or None,
+                        "lebar_drainase_kanan": str(row[14] or "").strip() or None,
                         "drainase_kanan_tipe": str(row[15] or "").strip() or None,
                         "drainase_kanan_kondisi": str(row[16] or "").strip() or None,
                     }
@@ -984,31 +991,192 @@ class RoadSurveyApp:
         return torch_module.device("cuda" if torch_module.cuda.is_available() else "cpu")
 
     def start_survey_training(self):
+        """Mulai training di thread terpisah agar antarmuka tetap responsif."""
         if self.training_running:
             return
-        messagebox.showinfo("Training AI belum tersedia", "Antarmuka pengelolaan dataset tersedia, tetapi pipeline training belum diimplementasikan pada file ini. Jangan anggap model AI sudah terlatih.")
+        if not ai_model.TORCH_AVAILABLE:
+            messagebox.showerror(
+                "Training AI",
+                "PyTorch belum tersedia. Jalankan build_portable.bat atau pasang PyTorch.",
+                parent=self.root,
+            )
+            return
+        try:
+            epochs = int(self.ai_epochs_var.get())
+            batch_size = int(self.ai_batch_var.get())
+            if not 1 <= epochs <= 500 or not 1 <= batch_size <= 256:
+                raise ValueError("Epoch harus 1-500 dan batch harus 1-256.")
+        except ValueError as error:
+            messagebox.showerror("Parameter Training", str(error), parent=self.root)
+            return
+
+        records = []
+        for record in self.training_records:
+            image_path = APP_ROOT / record.get("image_path", "")
+            if image_path.is_file() and isinstance(record.get("labels"), dict):
+                records.append({
+                    "absolute_image_path": str(image_path),
+                    "labels": dict(record["labels"]),
+                })
+        if len(records) < 2:
+            messagebox.showwarning(
+                "Dataset Belum Cukup",
+                "Impor minimal dua foto dengan label survei yang benar dan tersedia.",
+                parent=self.root,
+            )
+            return
+
+        self.training_cancel_event.clear()
+        self.training_running = True
+        self.cancel_training_button.configure(state="normal")
+        self.ai_training_status.set("Training dimulai. Jangan tutup aplikasi selama proses berjalan.")
+        worker = threading.Thread(
+            target=self._training_worker,
+            args=(records, epochs, batch_size, self.ai_device_var.get()),
+            daemon=True,
+            name="APRJ-AI-Training",
+        )
+        worker.start()
+
+    def _training_worker(self, records, epochs, batch_size, device_name):
+        try:
+            run_name = datetime.now().strftime("%Y%m%d_%H%M%S")
+            run_dir = SURVEY_AI_RUNS / run_name
+
+            def report(message):
+                self.root.after(0, lambda text=message: self.ai_training_status.set(text))
+
+            summary = training_engine.train_model(
+                records=records,
+                task_options=SURVEY_TASKS,
+                width_fields=SURVEY_WIDTH_FIELDS,
+                image_size=ai_model.IMAGE_SIZE,
+                checkpoint_path=SURVEY_AI_MODEL,
+                run_dir=run_dir,
+                epochs=epochs,
+                batch_size=batch_size,
+                device_name=device_name,
+                cancel_event=self.training_cancel_event,
+                progress_callback=report,
+            )
+            self.root.after(0, lambda result=summary: self._training_finished(summary=result))
+        except Exception as error:
+            self.root.after(0, lambda err=error: self._training_finished(error=err))
+
+    def _training_finished(self, summary=None, error=None):
+        self.training_running = False
+        self.cancel_training_button.configure(state="disabled")
+        if error is not None:
+            if isinstance(error, InterruptedError):
+                message = f"Training dibatalkan. {error}"
+            else:
+                message = f"Training gagal: {error}"
+                log_application_error("Training AI", type(error), error, error.__traceback__)
+            self.ai_training_status.set(message)
+            messagebox.showwarning("Training AI", message, parent=self.root)
+            return
+
+        self.survey_ai_checkpoint = summary["checkpoint"]
+        self.ai_training_status.set(
+            f"Training selesai pada {summary['device']}. "
+            f"Data latih: {summary['training_samples']}; validasi: {summary['validation_samples']}; "
+            f"waktu: {summary['elapsed_seconds']} detik. Model: {summary['checkpoint']}"
+        )
+        trained_tasks = ", ".join(summary["task_classes"].keys()) or "regresi lebar"
+        messagebox.showinfo(
+            "Training Selesai",
+            f"Checkpoint tersimpan:\\n{summary['checkpoint']}\\n\\n"
+            f"Data latih: {summary['training_samples']}\\n"
+            f"Data validasi: {summary['validation_samples']}\\n"
+            f"Tugas klasifikasi terlatih: {trained_tasks}\\n"
+            f"Perangkat: {summary['device']}\\n"
+            f"Waktu: {summary['elapsed_seconds']} detik\\n\\n"
+            "Model adalah CNN yang dilatih dari awal, bukan model pretrained. "
+            "Tinjau metrik dan hasil prediksi sebelum digunakan untuk keputusan survei.",
+            parent=self.root,
+        )
 
     def check_ai_inference_readiness(self):
-        """Laporkan kesiapan inferensi tanpa menghasilkan prediksi buatan."""
-        model_path = SURVEY_AI_MODEL
+        """Validasi checkpoint yang sesungguhnya, bukan sekadar keberadaan file."""
         if not ai_model.TORCH_AVAILABLE:
-            message = "PyTorch belum tersedia. Inferensi tidak dapat dijalankan."
-        elif not model_path.is_file():
-            message = (
-                "PyTorch tersedia, tetapi file model terlatih belum ditemukan:\n"
-                f"{model_path}"
-            )
+            message = "PyTorch belum tersedia. Training dan inferensi tidak dapat dijalankan."
+        elif not SURVEY_AI_MODEL.is_file():
+            message = f"Checkpoint model terlatih belum ditemukan:\\n{SURVEY_AI_MODEL}"
         else:
-            message = (
-                "File model ditemukan, tetapi loader checkpoint dan pemetaan output "
-                "inferensi belum diimplementasikan. Belum ada prediksi yang dapat "
-                "diterapkan ke formulir survei."
-            )
+            try:
+                _, checkpoint, device = training_engine.load_model(
+                    SURVEY_AI_MODEL, self.ai_device_var.get()
+                )
+                tasks = ", ".join(checkpoint.get("task_classes", {}).keys()) or "tidak ada klasifikasi"
+                widths = ", ".join(checkpoint.get("trained_width_fields", [])) or "tidak ada regresi lebar terlatih"
+                message = (
+                    f"Checkpoint berhasil dimuat pada {device}.\\n"
+                    f"Tanggal training: {checkpoint.get('trained_at', 'tidak tercatat')}\\n"
+                    f"Tugas klasifikasi: {tasks}\\n"
+                    f"Lebar yang dilatih: {widths}\\n"
+                    f"Catatan model: {checkpoint.get('model_note', '')}"
+                )
+            except Exception as error:
+                message = f"Checkpoint tidak dapat dimuat: {error}"
         self.ai_training_status.set(message)
         messagebox.showinfo("Kesiapan Inferensi AI", message, parent=self.root)
 
+    def predict_current_photo(self):
+        """Tampilkan prediksi model untuk foto aktif sebagai saran yang wajib ditinjau."""
+        if self.current_photo_idx < 0 or not self.photo_list or not self.photo_folder:
+            messagebox.showwarning(
+                "Prediksi AI", "Pilih folder foto dan muat foto pada tab Survei Jalan terlebih dahulu.",
+                parent=self.root,
+            )
+            return
+        image_path = Path(self.photo_folder) / self.photo_list[self.current_photo_idx]
+        try:
+            result = training_engine.predict_image(
+                image_path, SURVEY_AI_MODEL, self.ai_device_var.get()
+            )
+        except Exception as error:
+            messagebox.showerror("Prediksi AI Gagal", str(error), parent=self.root)
+            return
+
+        lines = [f"Foto: {image_path.name}", f"Perangkat: {result['device']}", "", "Saran klasifikasi:"]
+        for task, item in result["classes"].items():
+            lines.append(f"• {task}: {item['label']} (keyakinan model {item['confidence']:.1%})")
+        if result["widths"]:
+            lines.extend(["", "Estimasi lebar (meter):"])
+            lines.extend(f"• {field}: {value:.2f} m" for field, value in result["widths"].items())
+        lines.extend([
+            "",
+            "Keyakinan adalah probabilitas keluaran model, bukan jaminan kebenaran.",
+            "Periksa foto dan koreksi hasil sebelum menyimpan data survei.",
+            "",
+            "Terapkan saran ini ke formulir Survei Jalan untuk ditinjau?",
+        ])
+        if not messagebox.askyesno("Saran AI — perlu verifikasi", "\n".join(lines), parent=self.root):
+            self.ai_training_status.set(f"Prediksi dibuat untuk {image_path.name}; tidak diterapkan.")
+            return
+
+        for task, item in result["classes"].items():
+            if task in self.options_config and item["label"] in self.options_config[task]:
+                self.select_option_trigger(task, item["label"])
+        width_vars = {
+            "lebar_bahu_kiri": self.var_lebar_bahu_kiri,
+            "lebar_drainase_kiri": self.var_lebar_drainase_kiri,
+            "lebar_perkerasan": self.var_lebar_perkerasan,
+            "lebar_bahu_kanan": self.var_lebar_bahu_kanan,
+            "lebar_drainase_kanan": self.var_lebar_drainase_kanan,
+        }
+        for field, value in result["widths"].items():
+            if field in width_vars:
+                width_vars[field].set(f"{value:.2f}")
+        self.notebook.select(self.survey_tab)
+        self.ai_training_status.set(
+            f"Saran AI untuk {image_path.name} diterapkan ke formulir; tinjau dan simpan secara manual."
+        )
+
     def cancel_survey_training(self):
-        self.training_cancel_event.set()
+        if self.training_running:
+            self.training_cancel_event.set()
+            self.ai_training_status.set("Permintaan pembatalan dikirim; menunggu batch saat ini selesai.")
 
     def open_ai_folder(self):
         try:
