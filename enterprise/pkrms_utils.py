@@ -104,10 +104,10 @@ def export_pkrms_report(destination):
                 if photo.is_file() and photo.suffix.lower() in IMAGE_EXTENSIONS:
                     counts[label] += 1
                     survey.append([
-                        "Sumatera Barat", "", "", "", "", "",
+                        "", "", "", "", "", "",
                         "", "", "", datetime.now().date().isoformat(),
-                        photo.name, "", label, label, "", label, "Belum diverifikasi",
-                        "", "belum_diukur", "Hasil audit sistem"
+                        str(photo), "", label, "", "", label, "Perlu verifikasi manusia",
+                        "", "belum_diukur", "Inventaris dataset; bukan survei terverifikasi"
                     ])
     workbook.save(destination)
     return counts
