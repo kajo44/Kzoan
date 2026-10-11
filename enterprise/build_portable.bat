@@ -7,8 +7,8 @@ echo ============================================================
 echo  APRJ - Build Windows ONEDIR Portable
 echo ============================================================
 echo.
-echo Prasyarat: Python 3.11 64-bit dari python.org, termasuk Tcl/Tk.
-echo Build ini memasukkan PyTorch CPU. Ukuran output dapat besar.
+echo Prasyarat: Windows 10/11 64-bit, Python 3.11 64-bit dan Tcl/Tk.
+echo PyTorch CPU akan dipasang; ukuran output dapat besar.
 echo.
 
 where py >nul 2>nul
@@ -21,19 +21,11 @@ if errorlevel 1 (
 
 if not exist ".venv\Scripts\python.exe" (
   py -3.11 -m venv .venv
-  if errorlevel 1 (
-    echo ERROR: Gagal membuat virtual environment Python 3.11.
-    pause
-    exit /b 1
-  )
+  if errorlevel 1 goto :fail
 )
 
 call ".venv\Scripts\activate.bat"
-if errorlevel 1 (
-  echo ERROR: Gagal mengaktifkan virtual environment.
-  pause
-  exit /b 1
-)
+if errorlevel 1 goto :fail
 
 python -m pip install --upgrade pip
 if errorlevel 1 goto :fail
@@ -44,13 +36,13 @@ python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
 if errorlevel 1 goto :fail
 
 echo.
-echo [2/3] Memasang dependensi aplikasi dan PyInstaller...
+echo [2/3] Memasang dependensi...
 python -m pip install -r requirements.txt
 if errorlevel 1 goto :fail
 
 echo.
-echo [3/3] Memeriksa sintaks semua modul...
-python -m py_compile main.py frontend.py core.py database.py ai_model.py pkrms_utils.py APRJ_v2.py
+echo [3/3] Memeriksa sintaks aplikasi...
+python -m py_compile main.py APRJ_v2.py
 if errorlevel 1 goto :fail
 
 echo.
@@ -61,12 +53,6 @@ python -m PyInstaller --noconfirm --clean --windowed --onedir ^
   --collect-all PIL ^
   --collect-all openpyxl ^
   --collect-all torch ^
-  --hidden-import database ^
-  --hidden-import ai_model ^
-  --hidden-import pkrms_utils ^
-  --hidden-import APRJ_v2 ^
-  --hidden-import psycopg2 ^
-  --hidden-import psycopg2._psycopg ^
   main.py
 if errorlevel 1 goto :fail
 
