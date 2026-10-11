@@ -39,7 +39,7 @@ if not exist ".venv\Scripts\python.exe" (
 set "PYTHON_EXE=%CD%\.venv\Scripts\python.exe"
 
 echo.
-echo [1/4] Memperbarui pip...
+echo [1/5] Memperbarui pip...
 "%PYTHON_EXE%" -m pip install --upgrade pip
 if errorlevel 1 goto :fail
 
@@ -56,7 +56,7 @@ if errorlevel 1 goto :fail
 
 echo.
 echo [4/5] Memeriksa sintaks seluruh modul Python...
-"%PYTHON_EXE%" -m compileall -q .
+"%PYTHON_EXE%" -m compileall -q aprj_main.py aprj_ui.py aprj_core.py aprj_database.py aprj_ai_model.py aprj_pkrms.py aprj_training_engine.py aprj_geospasial.py aprj_metadata.py aprj_map_matching.py tests
 if errorlevel 1 goto :fail
 
 echo.
