@@ -400,3 +400,41 @@ KOREKSI VALIDASI LANJUTAN:
   https://github.com/kajo44/Kzoan/actions/runs/38165271037
 - Status ini berlaku untuk kompilasi sintaks Python dan tes unit normalisasi label,
   bukan bukti bahwa build Windows atau seluruh aplikasi telah lulus uji operasional.
+
+
+================================================================
+CHECKPOINT MODUL GEOSPASIAL JALAN — 2026-10-12
+================================================================
+Nama yang ditampilkan di aplikasi dan dokumentasi: Modul Geospasial Jalan.
+
+Implementasi yang sudah masuk ke branch crg_aprj:
+- enterprise/aprj_geospasial.py
+  Mesin indeks GPS ExifTool batch, database terpisah, pembacaan KML/GeoJSON,
+  STA, pencarian kandidat dalam radius, status pekerjaan, dan ekspor CSV.
+- enterprise/aprj_ui.py
+  Panel Modul Geospasial Jalan pada tab PKRMS, pekerjaan di worker thread,
+  progres/batal, tabel hasil, membuka foto ke Survei Jalan, membuka foto untuk
+  verifikasi AI, dan sheet Pemetaan STA pada ekspor PKRMS.
+- enterprise/build_portable.bat
+  Memasukkan modul baru dan folder bin ke build; memeriksa ExifTool.
+- enterprise/tests/test_geospasial.py
+  Tes unit geometri STA, jarak, GeoJSON, dan penyimpanan hasil.
+- APRJ_PORTABLE_GUIDE.txt
+  Panduan ExifTool dan batasan modul.
+
+Database penilaian yang lama tidak dimigrasikan atau diubah. Hasil geospasial
+disimpan di data/geospatial.sqlite3. CLEAN hanya membersihkan cache AI dan
+cache geospasial yang dikenal, bukan database atau hasil.
+
+BELUM DIVERIFIKASI PADA MESIN TARGET:
+- Build Windows/PyInstaller dan pembukaan GUI secara nyata.
+- Pemrosesan folder jutaan foto, pemulihan setelah daya terputus, serta performa.
+- Kesesuaian geometri/STA dengan sumber GIS tertentu dan akurasi hasil lapangan.
+- Penempatan ExifTool yang sebenarnya pada mesin pengguna.
+- Alur impor dataset AI otomatis: untuk tahap ini, foto kandidat dibuka untuk
+  verifikasi manusia; label tidak dibuat otomatis dan belum otomatis masuk ke
+  dataset training.
+
+Langkah validasi berikutnya: periksa hasil GitHub Actions setelah commit tes,
+jalankan tes Windows pada folder foto kecil, lalu ukur waktu dan penggunaan memori
+sebelum menguji koleksi besar.
