@@ -616,7 +616,7 @@ class RoadSurveyApp:
 
         ttk.Label(panel, text="Geometri ruas:").grid(row=1, column=0, sticky="w", padx=6, pady=4)
         ttk.Entry(panel, textvariable=self.geospatial_road_file_var).grid(row=1, column=1, sticky="ew", padx=4, pady=4)
-        ttk.Button(panel, text="Pilih KML/GeoJSON", command=self.geospatial_choose_road_file).grid(row=1, column=2, padx=4, pady=4)
+        ttk.Button(panel, text="Pilih KML/KMZ/GeoJSON", command=self.geospatial_choose_road_file).grid(row=1, column=2, padx=4, pady=4)
 
         options = ttk.Frame(panel)
         options.grid(row=2, column=0, columnspan=3, sticky="ew", padx=4, pady=4)
