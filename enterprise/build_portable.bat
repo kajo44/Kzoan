@@ -56,7 +56,7 @@ if errorlevel 1 goto :fail
 
 echo.
 echo [1/3] Memeriksa sintaks seluruh modul dan tes...
-python -m compileall -q aprj_main.py aprj_ui.py aprj_core.py aprj_database.py aprj_ai_model.py aprj_pkrms.py aprj_training_engine.py aprj_geospasial.py aprj_metadata.py aprj_map_matching.py tests
+python -m compileall -q aprj_main.py aprj_ui.py aprj_core.py aprj_database.py aprj_ai_model.py aprj_pkrms.py aprj_training_engine.py aprj_geospasial.py aprj_metadata.py aprj_map_matching.py aprj_exif_fallback.py tests
 if errorlevel 1 goto :fail
 
 echo.
