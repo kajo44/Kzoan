@@ -1210,12 +1210,32 @@ class RoadSurveyApp:
         ttk.Label(training_frame, textvariable=self.ai_training_status, wraplength=900).grid(row=2, column=0, columnspan=11, sticky="w", padx=5, pady=5)
         self.refresh_training_dataset_view()
 
+    def resolve_training_record_path(self, record):
+        """Utamakan foto sumber; dukung manifest lama yang masih memakai image_path."""
+        source_value = record.get("source_path")
+        source_path = Path(source_value).expanduser() if source_value else None
+        if source_path is not None and source_path.is_file():
+            return source_path
+        legacy_value = record.get("image_path")
+        if legacy_value:
+            legacy_path = Path(legacy_value)
+            if not legacy_path.is_absolute():
+                legacy_path = APP_ROOT / legacy_path
+            if legacy_path.is_file():
+                return legacy_path
+        if source_path is not None:
+            return source_path
+        if legacy_value:
+            legacy_path = Path(legacy_value)
+            return legacy_path if legacy_path.is_absolute() else APP_ROOT / legacy_path
+        return Path("")
+
     def refresh_training_dataset_view(self):
         if not hasattr(self, "ai_dataset_tree"):
             return
         self.ai_dataset_tree.delete(*self.ai_dataset_tree.get_children())
         for record in self.training_records:
-            image_path = APP_ROOT / record.get("image_path", "")
+            image_path = self.resolve_training_record_path(record)
             labels = record.get("labels", {})
             category_count = sum(bool(labels.get(task)) for task in SURVEY_TASKS)
             width_count = sum(labels.get(field) is not None for field in SURVEY_WIDTH_FIELDS)
@@ -1293,28 +1313,33 @@ class RoadSurveyApp:
         added = 0
         updated = 0
         try:
-            # SHA-256 mencegah foto yang sama terhitung berulang saat Excel diimpor ulang.
+            # Hash secara streaming agar foto besar tidak seluruhnya dimuat ke RAM.
             index_by_digest = {
                 record.get("sha256"): index
                 for index, record in enumerate(self.training_records)
                 if record.get("sha256")
             }
             for staged in self.staged_training_records:
-                source = Path(staged["source_path"])
-                digest = hashlib.sha256(source.read_bytes()).hexdigest()
-                destination = SURVEY_AI_IMAGES / f"{digest[:20]}_{source.name}"
-                if not destination.exists():
-                    shutil.copy2(source, destination)
+                source = Path(staged["source_path"]).expanduser().resolve(strict=True)
+                if not source.is_file():
+                    continue
+                hasher = hashlib.sha256()
+                with source.open("rb") as source_file:
+                    for chunk in iter(lambda: source_file.read(1024 * 1024), b""):
+                        hasher.update(chunk)
+                digest = hasher.hexdigest()
                 if digest in index_by_digest:
                     existing = self.training_records[index_by_digest[digest]]
                     existing["photo_name"] = staged["photo_name"]
+                    existing["source_path"] = str(source)
+                    existing["sha256"] = digest
                     existing["labels"] = staged["labels"]
                     existing["imported_at"] = datetime.now().isoformat()
                     updated += 1
                     continue
                 record = {
                     "photo_name": staged["photo_name"],
-                    "image_path": str(destination.relative_to(APP_ROOT)),
+                    "source_path": str(source),
                     "sha256": digest,
                     "labels": staged["labels"],
                     "imported_at": datetime.now().isoformat(),
@@ -1324,7 +1349,7 @@ class RoadSurveyApp:
                 added += 1
             self.save_training_manifest()
         except Exception as e:
-            messagebox.showerror("Gagal Menyalin", str(e), parent=self.root)
+            messagebox.showerror("Gagal Menyimpan Referensi Dataset", str(e), parent=self.root)
             return
 
         self.staged_training_records = []
@@ -1336,8 +1361,16 @@ class RoadSurveyApp:
         )
 
     def validate_training_dataset(self):
-        available = sum(1 for r in self.training_records if (APP_ROOT / r.get("image_path", "")).is_file())
-        messagebox.showinfo("Validasi Dataset", f"Total record terdaftar: {len(self.training_records)}\nFile foto fisik tersedia: {available}")
+        available = sum(1 for record in self.training_records if self.resolve_training_record_path(record).is_file())
+        missing = len(self.training_records) - available
+        messagebox.showinfo(
+            "Validasi Dataset",
+            f"Total record terdaftar: {len(self.training_records)}\n"
+            f"File foto tersedia: {available}\n"
+            f"File foto hilang: {missing}\n\n"
+            "Foto sumber tidak disalin oleh proses impor.",
+            parent=self.root,
+        )
 
     def resolve_training_device(self, torch_module):
         choice = self.ai_device_var.get()
@@ -1370,20 +1403,29 @@ class RoadSurveyApp:
             return
 
         records = []
+        missing_count = 0
         for record in self.training_records:
-            image_path = APP_ROOT / record.get("image_path", "")
+            image_path = self.resolve_training_record_path(record)
             if image_path.is_file() and isinstance(record.get("labels"), dict):
                 records.append({
                     "absolute_image_path": str(image_path),
                     "labels": dict(record["labels"]),
                 })
+            else:
+                missing_count += 1
         if len(records) < 2:
             messagebox.showwarning(
                 "Dataset Belum Cukup",
-                "Impor minimal dua foto dengan label survei yang benar dan tersedia.",
+                "Minimal dua foto berlabel harus tersedia pada lokasi sumber. "
+                "Periksa kembali jalur sumber atau impor ulang Excel jika foto dipindahkan.",
                 parent=self.root,
             )
             return
+        if missing_count:
+            self.ai_training_status.set(
+                f"{missing_count} foto tidak ditemukan dan dilewati; "
+                f"{len(records)} foto tersedia untuk training."
+            )
 
         training_mode = self.ai_training_mode_var.get()
         if training_mode == "Lanjutkan dari model aktif" and not SURVEY_AI_MODEL.is_file():
