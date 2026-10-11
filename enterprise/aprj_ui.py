@@ -1424,8 +1424,7 @@ class RoadSurveyApp:
             ".jpg", ".jpeg", ".jpe", ".png", ".tif", ".tiff", ".bmp",
             ".webp", ".heic", ".heif", ".jfif",
         }
-        wanted_hashes = {digest for _, digest in missing_records.values()} if isinstance(missing_records, dict) else set()
-        # Mapping index -> digest diterima dari UI; bangun set hash secara eksplisit.
+        # Mapping index -> digest diterima dari UI.
         wanted_hashes = {digest for digest in missing_records.values()}
         matches = {}
         ambiguous = set()
@@ -1479,9 +1478,6 @@ class RoadSurveyApp:
                 self.save_training_manifest()
             result = {
                 "updated": updated,
-                "missing": len(missing_records) - updated - sum(
-                    1 for digest in ambiguous if digest in wanted_hashes
-                ),
                 "ambiguous": ambiguous_count,
                 "scanned": scanned,
                 "hashed": hashed,
