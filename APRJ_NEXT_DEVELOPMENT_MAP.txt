@@ -480,3 +480,37 @@ Tes/batasan:
   dibaca aplikasi dan jalankan uji folder foto kecil.
 
 Status: BERJALAN sampai pemeriksaan otomatis dan smoke test runtime selesai.
+
+
+================================================================
+CHECKPOINT REKONSTRUKSI ENTERPRISE — 2026-10-12
+================================================================
+Perubahan tambahan:
+- enterprise/aprj_ui.py: dialog Panduan & Diagnostik menjadi interaktif,
+  menampilkan versi runtime/dependensi, status ExifTool, lokasi database/log,
+  dan tombol untuk menyalin laporan. Kegagalan startup kini menampilkan pesan
+  yang mengarahkan pengguna ke log, bukan hanya menutup aplikasi.
+- enterprise/aprj_exif_fallback.py: fallback metadata EXIF dasar berbasis
+  Pillow, termasuk GPS DMS, referensi arah, tanggal, dan penanganan file rusak.
+- enterprise/aprj_map_matching.py dan enterprise/aprj_geospasial.py:
+  memakai fallback Pillow bila ExifTool tidak ditemukan saat runtime source.
+- enterprise/tests/test_exif_fallback.py: tes konversi koordinat, nilai rasional,
+  dan ketahanan terhadap foto yang tidak dapat dibaca.
+- enterprise/install_aprj.bat: memperbaiki pemasangan dependency build agar
+  PyInstaller benar-benar tersedia, menambah verifikasi piexif, compile check,
+  dan tes regresi.
+- enterprise/build_portable.bat: menjalankan compile check dan tes regresi
+  sebelum packaging serta menyertakan modul fallback EXIF.
+- enterprise/README.md, APRJ_PORTABLE_GUIDE.txt, dan requirements.txt:
+  diperbarui untuk menjelaskan fallback, pemeriksaan, dan batasan.
+- Pemeriksaan struktur enterprise tidak menemukan folder build/dist/cache
+  atau dataset runtime yang dilacak pada daftar direktori aktif. Tidak ada
+  database, dataset, foto, checkpoint, atau hasil pengguna yang dihapus.
+
+Batasan:
+- Build portable Windows tetap meminta ExifTool lokal saat packaging; fallback
+  Pillow ditujukan untuk runtime source/lingkungan tanpa ExifTool dan hanya
+  membaca tag EXIF dasar.
+- Belum mengklaim tes lulus sampai GitHub Actions/tes aktual untuk commit terbaru
+  memberikan hasil sukses. GUI Windows, packaging portable, skala jutaan foto,
+  dan akurasi lapangan tetap perlu diuji terpisah.
