@@ -9,7 +9,26 @@ echo ============================================================
 echo.
 echo Prasyarat: Windows 10/11 64-bit, Python 3.11 64-bit dan Tcl/Tk.
 echo PyTorch CPU akan dipasang; ukuran output dapat besar.
+echo Modul Geospasial Jalan membutuhkan bin\exiftool.exe.
+echo Jika bin belum tersedia, script akan mencoba menyalin dari C:\Tools\ExifTool.
 echo.
+
+if not exist "bin\exiftool.exe" (
+  if exist "C:\Tools\ExifTool\exiftool.exe" (
+    if not exist "bin" mkdir "bin"
+    copy /Y "C:\Tools\ExifTool\exiftool.exe" "bin\exiftool.exe" >nul
+    if exist "C:\Tools\ExifTool\exiftool_files" (
+      xcopy "C:\Tools\ExifTool\exiftool_files" "bin\exiftool_files\\" /E /I /Y >nul
+    )
+  )
+)
+if not exist "bin\exiftool.exe" (
+  echo ERROR: ExifTool tidak ditemukan.
+  echo Salin exiftool.exe ke enterprise\bin\exiftool.exe.
+  echo Sertakan folder exiftool_files jika distribusi ExifTool Anda membutuhkannya.
+  pause
+  exit /b 1
+)
 
 where py >nul 2>nul
 if errorlevel 1 (
@@ -37,7 +56,7 @@ if errorlevel 1 goto :fail
 
 echo.
 echo [2/2] Memeriksa sintaks aplikasi...
-python -m py_compile aprj_main.py aprj_ui.py aprj_core.py aprj_database.py aprj_ai_model.py aprj_pkrms.py aprj_training_engine.py main.py APRJ_v2.py core.py database.py ai_model.py pkrms_utils.py training_engine.py
+python -m py_compile aprj_main.py aprj_ui.py aprj_core.py aprj_database.py aprj_ai_model.py aprj_pkrms.py aprj_training_engine.py aprj_geospasial.py main.py APRJ_v2.py core.py database.py ai_model.py pkrms_utils.py training_engine.py
 if errorlevel 1 goto :fail
 
 echo.
@@ -48,11 +67,13 @@ python -m PyInstaller --noconfirm --clean --windowed --onedir ^
   --collect-all PIL ^
   --collect-all openpyxl ^
   --collect-all torch ^
+  --add-data "bin;bin" ^
   --hidden-import aprj_core ^
   --hidden-import aprj_ai_model ^
   --hidden-import aprj_training_engine ^
   --hidden-import aprj_database ^
   --hidden-import aprj_pkrms ^
+  --hidden-import aprj_geospasial ^
   --hidden-import psycopg2 ^
   --hidden-import psycopg2._psycopg ^
   aprj_main.py
