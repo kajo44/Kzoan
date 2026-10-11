@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """Modul Geospasial Jalan: indeks GPS foto, pencocokan ruas, STA, dan ekspor.
 
-Implementasi menggunakan pustaka standar Python. ExifTool dibaca dari
-<direktori-aplikasi>/bin/exiftool.exe agar instalasi portabel tidak bergantung
-pada ExifTool global. Input geometri yang didukung: GeoJSON, KML, dan KMZ (LineString serta gx:Track).
+Implementasi menggunakan pustaka standar Python untuk geometri dan SQLite.
+ExifTool lokal menjadi pilihan utama; Pillow digunakan sebagai fallback metadata EXIF dasar.
+Input geometri yang didukung: GeoJSON, KML, dan KMZ (LineString serta gx:Track).
 """
 from __future__ import annotations
 
@@ -389,9 +389,8 @@ class GeospatialEngine:
         for candidate in candidates:
             if candidate.is_file():
                 return candidate
-        raise FileNotFoundError(
-            "ExifTool tidak ditemukan. Tempatkan exiftool.exe di folder aplikasi bin\\exiftool.exe."
-        )
+        # Fallback Pillow memungkinkan pemrosesan EXIF dasar tanpa ExifTool.
+        return None
 
     def _run_exiftool(self, executable, paths):
         # Batch terbatas menjaga command line Windows tetap di bawah batas panjangnya.
@@ -435,7 +434,16 @@ class GeospatialEngine:
                     continue
                 if fingerprints.get(resolved) != (stat.st_size, stat.st_mtime_ns):
                     changed.append(path)
-            metadata = self._run_exiftool(executable, changed) if changed else {}
+            if changed and executable is not None:
+                metadata = self._run_exiftool(executable, changed)
+            elif changed:
+                from aprj_exif_fallback import read_metadata_batch
+                metadata = read_metadata_batch(changed)
+                if progress:
+                    progress("fallback", total, indexed,
+                             "ExifTool tidak ditemukan; memakai fallback Pillow untuk EXIF dasar.")
+            else:
+                metadata = {}
             self.store.index_photo_batch(changed, metadata)
             total += len(paths)
             indexed += sum(1 for item in metadata.values() if item.get("GPSLatitude") is not None and item.get("GPSLongitude") is not None)
