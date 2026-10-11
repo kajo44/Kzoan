@@ -31,17 +31,12 @@ python -m pip install --upgrade pip
 if errorlevel 1 goto :fail
 
 echo.
-echo [1/3] Memasang PyTorch CPU...
-python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
-if errorlevel 1 goto :fail
-
-echo.
-echo [2/3] Memasang dependensi...
+echo [1/2] Memasang seluruh dependensi dari requirements.txt...
 python -m pip install -r requirements.txt
 if errorlevel 1 goto :fail
 
 echo.
-echo [3/3] Memeriksa sintaks aplikasi...
+echo [2/2] Memeriksa sintaks aplikasi...
 python -m py_compile aprj_main.py aprj_ui.py aprj_core.py aprj_database.py aprj_ai_model.py aprj_pkrms.py aprj_training_engine.py main.py APRJ_v2.py core.py database.py ai_model.py pkrms_utils.py training_engine.py
 if errorlevel 1 goto :fail
 
