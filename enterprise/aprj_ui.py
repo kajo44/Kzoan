@@ -1369,7 +1369,7 @@ function popupText(feature) {
   const box = document.createElement('div');
   const props = feature.properties || {};
   const rows = Object.entries(props).filter(([k,v]) => v !== null && v !== undefined && String(v) !== '')
-    .slice(0, 18);
+    .slice(0, 24);
   for (const [key, value] of rows) {
     const line = document.createElement('div');
     const strong = document.createElement('strong'); strong.textContent = key + ': ';
@@ -1378,14 +1378,63 @@ function popupText(feature) {
   }
   return box;
 }
-const layer = L.geoJSON(data, {
-  style: f => ({color: (f.properties && f.properties.kind === 'road') ? '#2471a3' : '#148f77', weight: 4}),
+const roadLayer = L.geoJSON(null, {
+  style: () => ({color: '#2471a3', weight: 4}),
+  onEachFeature: (feature, lyr) => lyr.bindPopup(popupText(feature))
+});
+const photoLayer = L.geoJSON(null, {
   pointToLayer: (f, latlng) => L.circleMarker(latlng, {
     radius: 6, color: '#145a32', weight: 1, fillColor: '#2ecc71', fillOpacity: 0.85
   }),
   onEachFeature: (feature, lyr) => lyr.bindPopup(popupText(feature))
-}).addTo(map);
-if (layer.getLayers().length) map.fitBounds(layer.getBounds().pad(0.08), {maxZoom: 17});
+});
+const staLayer = L.geoJSON(null, {
+  pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+    radius: 5, color: '#7d3c98', weight: 2, fillColor: '#af7ac5', fillOpacity: 0.9
+  }),
+  onEachFeature: (feature, lyr) => lyr.bindPopup(popupText(feature))
+});
+const conditionLayer = L.geoJSON(null, {
+  pointToLayer: (f, latlng) => {
+    const p = f.properties || {};
+    const text = Object.entries(p).filter(([k,v]) => /kondisi|condition|skor|score/i.test(k) && v)
+      .map(([,v]) => String(v).toUpperCase()).join(' ');
+    const color = /BAIK|GOOD|100|90|80/.test(text) ? '#229954'
+      : /SEDANG|FAIR|70|60/.test(text) ? '#d4ac0d'
+      : /RUSAK BERAT|POOR|BURUK|20|10|0/.test(text) ? '#c0392b' : '#e67e22';
+    return L.circleMarker(latlng, {radius: 9, color, weight: 2, fillColor: color, fillOpacity: 0.65});
+  },
+  onEachFeature: (feature, lyr) => lyr.bindPopup(popupText(feature))
+});
+for (const feature of data.features || []) {
+  const p = feature.properties || {};
+  const kind = String(p.kind || '').toLowerCase();
+  if (kind === 'road' || feature.geometry?.type === 'LineString' || feature.geometry?.type === 'MultiLineString') {
+    roadLayer.addData(feature);
+    continue;
+  }
+  if (kind.includes('sta') || p.STA_m !== undefined || p.sta_m !== undefined) staLayer.addData(feature);
+  if (kind.includes('photo') || kind.includes('point') || (!kind.includes('sta') && feature.geometry?.type === 'Point')) photoLayer.addData(feature);
+  if (Object.keys(p).some(k => /kondisi|condition|skor|score/i.test(k) && p[k] !== '' && p[k] != null)) {
+    conditionLayer.addData(feature);
+  }
+}
+const overlays = {
+  'Ruas jalan': roadLayer,
+  'Titik foto': photoLayer,
+  'Titik STA': staLayer,
+  'Skor/kondisi': conditionLayer
+};
+const allBounds = L.featureGroup(Object.values(overlays)).getBounds();
+const enabled = [];
+for (const [name, layer] of Object.entries(overlays)) {
+  if (layer.getLayers().length) {
+    layer.addTo(map);
+    enabled.push(name);
+  }
+}
+L.control.layers(null, overlays, {collapsed: false, position: 'topright'}).addTo(map);
+if (allBounds.isValid()) map.fitBounds(allBounds.pad(0.08), {maxZoom: 17});
 else map.setView([-0.5, 101.5], 7);
 </script></body></html>"""
         html_text = html_text.replace("__DATA__", safe_data).replace("__TITLE__", safe_title)
