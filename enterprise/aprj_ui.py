@@ -23,6 +23,7 @@ import aprj_ai_model as ai_model
 import aprj_database as database
 import aprj_pkrms as pkrms_utils
 import aprj_training_engine as training_engine
+from aprj_geospasial import GeospatialEngine
 from aprj_core import (
     APP_NAME, APP_ROOT, APP_LOGS, APP_ERROR_LOG, SURVEY_AI_ROOT,
     SURVEY_AI_DATASET, SURVEY_AI_IMAGES, SURVEY_AI_MANIFEST, SURVEY_AI_RUNS,
@@ -166,6 +167,17 @@ class RoadSurveyApp:
         self.training_running = False
         self.training_cancel_event = threading.Event()
         self.training_records = self.load_training_manifest()
+
+        # Database geospasial terpisah agar skema penilaian lama tidak berubah.
+        self.geospatial_engine = GeospatialEngine(APP_ROOT)
+        self.geospatial_job_id = self.geospatial_engine.store.latest_job_id()
+        self.geospatial_running = False
+        self.geospatial_cancel_event = threading.Event()
+        self.geospatial_photo_root_var = tk.StringVar(value="")
+        self.geospatial_road_file_var = tk.StringVar(value="")
+        self.geospatial_interval_var = tk.StringVar(value="100")
+        self.geospatial_radius_var = tk.StringVar(value="100")
+        self.geospatial_status = tk.StringVar(value="Siap. Pilih folder foto dan file geometri ruas.")
         
         self.original_image = None
         self.zoom_scale = 1.0
@@ -583,6 +595,210 @@ class RoadSurveyApp:
             text="Catatan: template ini adalah struktur kerja dan bukan pengganti validasi terhadap format resmi PKRMS.",
             wraplength=1000,
         ).grid(row=4, column=0, sticky="w", pady=(8, 0))
+        self.build_geospatial_panel()
+
+    def build_geospatial_panel(self):
+        """Panel Modul Geospasial Jalan di dalam tab PKRMS."""
+        panel = ttk.LabelFrame(self.pkrms_tab, text="Modul Geospasial Jalan — Pencocokan Foto dan STA")
+        panel.grid(row=5, column=0, sticky="nsew", pady=(12, 4))
+        panel.columnconfigure(1, weight=1)
+        panel.rowconfigure(3, weight=1)
+        self.pkrms_tab.rowconfigure(5, weight=1)
+
+        ttk.Label(panel, text="Folder foto:").grid(row=0, column=0, sticky="w", padx=6, pady=4)
+        ttk.Entry(panel, textvariable=self.geospatial_photo_root_var).grid(row=0, column=1, sticky="ew", padx=4, pady=4)
+        ttk.Button(panel, text="Pilih Folder", command=self.geospatial_choose_photo_root).grid(row=0, column=2, padx=4, pady=4)
+
+        ttk.Label(panel, text="Geometri ruas:").grid(row=1, column=0, sticky="w", padx=6, pady=4)
+        ttk.Entry(panel, textvariable=self.geospatial_road_file_var).grid(row=1, column=1, sticky="ew", padx=4, pady=4)
+        ttk.Button(panel, text="Pilih KML/GeoJSON", command=self.geospatial_choose_road_file).grid(row=1, column=2, padx=4, pady=4)
+
+        options = ttk.Frame(panel)
+        options.grid(row=2, column=0, columnspan=3, sticky="ew", padx=4, pady=4)
+        ttk.Label(options, text="Interval STA (m):").pack(side="left", padx=(2, 4))
+        ttk.Entry(options, textvariable=self.geospatial_interval_var, width=7).pack(side="left", padx=(0, 12))
+        ttk.Label(options, text="Radius kandidat (m):").pack(side="left", padx=(2, 4))
+        ttk.Entry(options, textvariable=self.geospatial_radius_var, width=7).pack(side="left", padx=(0, 12))
+        self.geospatial_run_button = ttk.Button(options, text="Jalankan Pencocokan", command=self.start_geospatial_job)
+        self.geospatial_run_button.pack(side="left", padx=3)
+        self.geospatial_cancel_button = ttk.Button(options, text="Batalkan", command=self.cancel_geospatial_job, state="disabled")
+        self.geospatial_cancel_button.pack(side="left", padx=3)
+        ttk.Button(options, text="Ekspor CSV", command=self.export_geospatial_csv).pack(side="left", padx=3)
+        ttk.Button(options, text="Buka Foto di Survei", command=self.open_geospatial_photo).pack(side="left", padx=3)
+        ttk.Button(options, text="Buka untuk Verifikasi AI", command=self.open_geospatial_photo_for_ai).pack(side="left", padx=3)
+
+        ttk.Label(panel, textvariable=self.geospatial_status, wraplength=1000).grid(
+            row=3, column=0, columnspan=3, sticky="ew", padx=6, pady=4
+        )
+        columns = ("road", "sta", "photo", "distance", "status")
+        self.geospatial_tree = ttk.Treeview(panel, columns=columns, show="headings", height=7)
+        for key, heading, width in (
+            ("road", "Ruas", 170), ("sta", "STA (m)", 75),
+            ("photo", "Foto kandidat", 390), ("distance", "Jarak (m)", 90),
+            ("status", "Status", 180),
+        ):
+            self.geospatial_tree.heading(key, text=heading)
+            self.geospatial_tree.column(key, width=width, anchor="w")
+        self.geospatial_tree.grid(row=4, column=0, columnspan=3, sticky="nsew", padx=4, pady=(0, 6))
+        scroll = ttk.Scrollbar(panel, orient="vertical", command=self.geospatial_tree.yview)
+        scroll.grid(row=4, column=3, sticky="ns", pady=(0, 6))
+        self.geospatial_tree.configure(yscrollcommand=scroll.set)
+        self.refresh_geospatial_results()
+
+    def geospatial_choose_photo_root(self):
+        folder = filedialog.askdirectory(parent=self.root, title="Pilih Folder Foto")
+        if folder:
+            self.geospatial_photo_root_var.set(folder)
+
+    def geospatial_choose_road_file(self):
+        filename = filedialog.askopenfilename(
+            parent=self.root, title="Pilih Geometri Ruas Jalan",
+            filetypes=[("Geometri jalan", "*.kml *.geojson *.json"), ("Semua berkas", "*.*")],
+        )
+        if filename:
+            self.geospatial_road_file_var.set(filename)
+
+    def start_geospatial_job(self):
+        if self.geospatial_running:
+            return
+        photo_root = self.geospatial_photo_root_var.get().strip()
+        road_file = self.geospatial_road_file_var.get().strip()
+        try:
+            interval = int(self.geospatial_interval_var.get().strip())
+            radius = float(self.geospatial_radius_var.get().strip())
+            if not photo_root or not Path(photo_root).is_dir():
+                raise ValueError("Pilih folder foto yang tersedia.")
+            if not road_file or not Path(road_file).is_file():
+                raise ValueError("Pilih file geometri ruas yang tersedia.")
+            if interval < 1:
+                raise ValueError("Interval STA minimal 1 meter.")
+            if not 1 <= radius <= 5000:
+                raise ValueError("Radius kandidat harus antara 1 dan 5000 meter.")
+        except (ValueError, OSError) as error:
+            messagebox.showwarning("Modul Geospasial Jalan", str(error), parent=self.root)
+            return
+        self.geospatial_cancel_event = threading.Event()
+        self.geospatial_job_id = self.geospatial_engine.store.create_job(road_file, photo_root, interval, radius)
+        self.geospatial_running = True
+        self.geospatial_run_button.configure(state="disabled")
+        self.geospatial_cancel_button.configure(state="normal")
+        self.geospatial_status.set("Menyiapkan pekerjaan geospasial...")
+        job_id = self.geospatial_job_id
+
+        def progress(stage, current, count, message):
+            try:
+                self.root.after(0, lambda text=message: self.geospatial_status.set(text))
+            except tk.TclError:
+                pass
+
+        def worker():
+            error = None
+            try:
+                self.geospatial_engine.run_job(
+                    job_id, photo_root, road_file, interval, radius,
+                    progress=progress, cancel_event=self.geospatial_cancel_event,
+                )
+            except Exception as caught:
+                error = caught
+            try:
+                self.root.after(0, lambda: self.finish_geospatial_job(job_id, error))
+            except tk.TclError:
+                pass
+
+        threading.Thread(target=worker, name="ModulGeospasialJalan", daemon=True).start()
+
+    def finish_geospatial_job(self, job_id, error):
+        self.geospatial_running = False
+        self.geospatial_run_button.configure(state="normal")
+        self.geospatial_cancel_button.configure(state="disabled")
+        if error:
+            self.geospatial_status.set(f"Pekerjaan tidak selesai: {error}")
+            log_application_error("Modul Geospasial Jalan", type(error), error, error.__traceback__)
+            if not isinstance(error, InterruptedError):
+                messagebox.showerror("Modul Geospasial Jalan", str(error), parent=self.root)
+        else:
+            self.geospatial_job_id = job_id
+            self.refresh_geospatial_results()
+            count = len(self.geospatial_engine.store.get_matches(job_id))
+            self.geospatial_status.set(f"Selesai. {count} STA tersimpan; foto kandidat berstatus perlu verifikasi.")
+        self.pkrms_status.set(self.geospatial_status.get())
+
+    def cancel_geospatial_job(self):
+        if self.geospatial_running:
+            self.geospatial_cancel_event.set()
+            self.geospatial_status.set("Permintaan pembatalan dikirim; proses berhenti pada checkpoint berikutnya.")
+
+    def refresh_geospatial_results(self):
+        if not hasattr(self, "geospatial_tree"):
+            return
+        self.geospatial_tree.delete(*self.geospatial_tree.get_children())
+        if not self.geospatial_job_id:
+            return
+        for road, name, sta, lat, lon, photo, plat, plon, distance, status in self.geospatial_engine.store.get_matches(self.geospatial_job_id):
+            photo_label = photo or "(tidak ada kandidat)"
+            distance_label = f"{distance:.1f}" if distance is not None else "—"
+            self.geospatial_tree.insert(
+                "", "end", values=(f"{road} — {name}", sta, photo_label, distance_label, status)
+            )
+
+    def _selected_geospatial_photo(self):
+        selection = self.geospatial_tree.selection() if hasattr(self, "geospatial_tree") else ()
+        if not selection:
+            messagebox.showinfo("Modul Geospasial Jalan", "Pilih baris hasil yang memiliki foto kandidat.", parent=self.root)
+            return None
+        values = self.geospatial_tree.item(selection[0], "values")
+        if len(values) < 3 or not values[2] or values[2] == "(tidak ada kandidat)":
+            messagebox.showinfo("Modul Geospasial Jalan", "Baris ini tidak memiliki foto kandidat.", parent=self.root)
+            return None
+        return Path(values[2])
+
+    def _open_geospatial_photo(self, ai_review=False):
+        photo = self._selected_geospatial_photo()
+        if photo is None or not photo.is_file():
+            if photo is not None:
+                messagebox.showerror("Buka Foto", f"Foto tidak ditemukan:\n{photo}", parent=self.root)
+            return
+        folder = str(photo.parent)
+        self.ent_path.delete(0, tk.END)
+        self.ent_path.insert(0, folder)
+        self.photo_folder = folder
+        self.muat_foto()
+        try:
+            relative = photo.relative_to(Path(folder)).as_posix()
+            if relative in self.photo_list:
+                self.current_photo_idx = self.photo_list.index(relative)
+                self.tampilkan_foto_dan_load_data()
+        except ValueError:
+            pass
+        self.notebook.select(self.ai_tab if ai_review else self.survey_tab)
+        if ai_review:
+            self.ai_training_status.set(
+                f"Foto {photo.name} dibuka dari Modul Geospasial Jalan. Jalankan Prediksi Foto Aktif bila model siap; verifikasi hasil secara manual."
+            )
+
+    def open_geospatial_photo(self):
+        self._open_geospatial_photo(ai_review=False)
+
+    def open_geospatial_photo_for_ai(self):
+        self._open_geospatial_photo(ai_review=True)
+
+    def export_geospatial_csv(self):
+        if not self.geospatial_job_id:
+            messagebox.showinfo("Ekspor Geospasial", "Belum ada hasil pekerjaan yang tersedia.", parent=self.root)
+            return
+        destination = filedialog.asksaveasfilename(
+            parent=self.root, title="Ekspor Hasil Pemetaan STA", defaultextension=".csv",
+            initialfile="hasil_pemetaan_sta.csv", filetypes=[("CSV", "*.csv")],
+        )
+        if not destination:
+            return
+        try:
+            count = self.geospatial_engine.store.export_csv(self.geospatial_job_id, destination)
+            self.geospatial_status.set(f"Ekspor CSV selesai: {count} baris. {destination}")
+            messagebox.showinfo("Ekspor Geospasial", self.geospatial_status.get(), parent=self.root)
+        except Exception as error:
+            log_application_error("Ekspor hasil geospasial", type(error), error, error.__traceback__)
+            messagebox.showerror("Ekspor Geospasial", str(error), parent=self.root)
 
     def pkrms_create_template(self):
         destination = filedialog.asksaveasfilename(
@@ -651,9 +867,42 @@ class RoadSurveyApp:
             for col in sheet.columns:
                 letter = col[0].column_letter
                 sheet.column_dimensions[letter].width = min(45, max(14, max(len(str(cell.value or "")) for cell in col) + 2))
+            if self.geospatial_job_id:
+                geo_sheet = workbook.create_sheet("Pemetaan STA")
+                geo_sheet.append([
+                    "road_id", "road_name", "sta_m", "sta_km", "sta_latitude", "sta_longitude",
+                    "photo_path", "photo_latitude", "photo_longitude", "distance_m",
+                    "validation_status", "survey_condition", "surface_type",
+                ])
+                survey_by_path = {}
+                for photo_key, survey_record in records.items():
+                    if not isinstance(survey_record, dict):
+                        continue
+                    key_path = Path(str(photo_key))
+                    if not key_path.is_absolute():
+                        folder = survey_record.get("folder", self.photo_folder)
+                        key_path = Path(folder) / key_path
+                    survey_by_path[os.path.normcase(os.path.abspath(str(key_path)))] = survey_record
+                for road, road_name, sta, lat, lon, photo, plat, plon, distance, status in self.geospatial_engine.store.get_matches(self.geospatial_job_id):
+                    survey_record = survey_by_path.get(os.path.normcase(os.path.abspath(photo))) if photo else {}
+                    survey_record = survey_record if isinstance(survey_record, dict) else {}
+                    geo_sheet.append([
+                        road, road_name, sta, sta / 1000.0, lat, lon, photo or "",
+                        plat, plon, distance, status,
+                        survey_record.get("perkerasan_kondisi", survey_record.get("kondisi", "")),
+                        survey_record.get("perkerasan_tipe", survey_record.get("jenis_perkerasan", "")),
+                    ])
+                geo_sheet.freeze_panes = "A2"
+                geo_sheet.auto_filter.ref = geo_sheet.dimensions
+                for cell in geo_sheet[1]:
+                    cell.font = XlFont(bold=True, color="FFFFFF")
+                    cell.fill = PatternFill("solid", fgColor="1F4E78")
+                for col in geo_sheet.columns:
+                    letter = col[0].column_letter
+                    geo_sheet.column_dimensions[letter].width = min(42, max(14, max(len(str(cell.value or "")) for cell in col) + 2))
             workbook.save(destination)
-            self.pkrms_status.set(f"Ekspor selesai: {len(records)} catatan ditulis ke {destination}")
-            messagebox.showinfo("PKRMS", f"Ekspor selesai. Jumlah catatan: {len(records)}.", parent=self.root)
+            self.pkrms_status.set(f"Ekspor selesai: {len(records)} catatan survei; hasil STA juga disertakan bila tersedia: {destination}")
+            messagebox.showinfo("PKRMS", f"Ekspor selesai. Catatan survei: {len(records)}. Hasil pemetaan STA disertakan bila tersedia.", parent=self.root)
         except Exception as error:
             log_application_error("Ekspor data PKRMS", type(error), error, error.__traceback__)
             messagebox.showerror("PKRMS", f"Gagal mengekspor data:\n{error}", parent=self.root)
