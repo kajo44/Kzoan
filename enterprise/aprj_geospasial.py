@@ -213,6 +213,26 @@ class GeospatialStore:
         with self.connect() as conn:
             return conn.execute("SELECT COUNT(*) FROM photo_index WHERE latitude IS NOT NULL AND longitude IS NOT NULL").fetchone()[0]
 
+    def existing_fingerprints(self, paths):
+        """Ambil fingerprint satu batch agar indeks inkremental tidak membaca ulang metadata."""
+        resolved = [str(path.resolve()) for path in paths]
+        if not resolved:
+            return {}
+        with self.connect() as conn:
+            placeholders = ",".join("?" for _ in resolved)
+            rows = conn.execute(
+                f"SELECT path, size_bytes, mtime_ns FROM photo_index WHERE path IN ({placeholders})",
+                resolved,
+            ).fetchall()
+        return {path: (size, mtime) for path, size, mtime in rows}
+
+    def latest_job_id(self):
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT job_id FROM jobs WHERE status='completed' ORDER BY updated_at DESC LIMIT 1"
+            ).fetchone()
+        return row[0] if row else None
+
     def index_photo_batch(self, paths, metadata):
         rows = []
         for path in paths:
@@ -288,8 +308,8 @@ class GeospatialStore:
         with self.connect() as conn:
             return conn.execute("""
                 SELECT road_id, road_name, sta_m, distance_m, validation_status
-                FROM matches WHERE photo_path=? ORDER BY updated_at DESC
-            """.replace(" ORDER BY updated_at DESC", " ORDER BY sta_m"), (str(Path(path).resolve()),)).fetchall()
+                FROM matches WHERE photo_path=? ORDER BY sta_m
+            """, (str(Path(path).resolve()),)).fetchall()
 
     def export_csv(self, job_id, destination):
         rows = self.get_matches(job_id)
@@ -351,6 +371,24 @@ class GeospatialEngine:
         total = indexed = 0
         batch = []
         # Iterator ini tidak membuat daftar jutaan path sekaligus.
+        def process_batch(paths):
+            nonlocal total, indexed
+            fingerprints = self.store.existing_fingerprints(paths)
+            changed = []
+            for path in paths:
+                try:
+                    stat = path.stat()
+                    resolved = str(path.resolve())
+                except OSError:
+                    continue
+                if fingerprints.get(resolved) != (stat.st_size, stat.st_mtime_ns):
+                    changed.append(path)
+            metadata = self._run_exiftool(executable, changed) if changed else {}
+            self.store.index_photo_batch(changed, metadata)
+            total += len(paths)
+            indexed += sum(1 for item in metadata.values() if item.get("GPSLatitude") is not None and item.get("GPSLongitude") is not None)
+            if progress:
+                progress("index", total, indexed, f"Memindai {total} foto; {len(changed)} foto baru/berubah pada batch ini.")
         for path in photo_root.rglob("*"):
             if cancel_event and cancel_event.is_set():
                 raise InterruptedError("Pekerjaan dibatalkan pengguna.")
@@ -361,20 +399,10 @@ class GeospatialEngine:
                 continue
             batch.append(path)
             if len(batch) >= batch_size:
-                metadata = self._run_exiftool(executable, batch)
-                self.store.index_photo_batch(batch, metadata)
-                total += len(batch)
-                indexed += sum(1 for item in metadata.values() if item.get("GPSLatitude") is not None and item.get("GPSLongitude") is not None)
-                if progress:
-                    progress("index", total, indexed, f"Memproses {total} foto; GPS ditemukan pada {indexed}.")
+                process_batch(batch)
                 batch = []
         if batch:
-            metadata = self._run_exiftool(executable, batch)
-            self.store.index_photo_batch(batch, metadata)
-            total += len(batch)
-            indexed += sum(1 for item in metadata.values() if item.get("GPSLatitude") is not None and item.get("GPSLongitude") is not None)
-            if progress:
-                progress("index", total, indexed, f"Memproses {total} foto; GPS ditemukan pada {indexed}.")
+            process_batch(batch)
         return total, indexed
 
     def run_job(self, job_id, photo_root, road_file, interval_m=100, radius_m=100,
