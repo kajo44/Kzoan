@@ -19,14 +19,24 @@ PKRMS_TEMPLATE_COLUMNS = [
 
 
 def audit_dataset():
-    """Melakukan audit direktori dataset untuk menghitung jumlah sampel per kategori."""
-    report = {
-        "condition_counts": {label: len(list((DATASET_ROOT / label).rglob("*"))) for label in CLASSES if (DATASET_ROOT / label).is_dir()},
-        "surface_counts": {label: len(list((DATASET_ROOT / "surface_type" / label).rglob("*"))) for label in SURFACE_CLASSES if (DATASET_ROOT / "surface_type" / label).is_dir()},
+    """Hitung sampel gambar per kelas, tanpa menghitung folder sebagai sampel."""
+    def count_images(directory):
+        if not directory.is_dir():
+            return 0
+        return sum(
+            1 for path in directory.rglob("*")
+            if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
+        )
+
+    return {
+        "condition_counts": {label: count_images(DATASET_ROOT / label) for label in CLASSES},
+        "surface_counts": {
+            label: count_images(DATASET_ROOT / "surface_type" / label)
+            for label in SURFACE_CLASSES
+        },
         "invalid": [],
         "duplicate_groups": 0,
     }
-    return report
 
 
 def normalize_condition(value):
@@ -75,10 +85,10 @@ def export_pkrms_report(destination):
                 if photo.is_file() and photo.suffix.lower() in IMAGE_EXTENSIONS:
                     counts[label] += 1
                     survey.append([
-                        "Sumatera Barat", "", "", "", "", "",
+                        "", "", "", "", "", "",
                         "", "", "", datetime.now().date().isoformat(),
                         photo.name, "", label, label, "", label, "Belum diverifikasi",
-                        "", "belum_diukur", "Hasil audit sistem"
+                        "", "belum_diukur", "Berkas ditemukan pada folder dataset; label perlu diverifikasi"
                     ])
     workbook.save(destination)
     return counts
