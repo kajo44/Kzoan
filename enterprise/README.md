@@ -10,6 +10,7 @@ APRJ Next menggabungkan empat area kerja:
 - **Rekayasa AI** — mengimpor dataset berlabel, melatih model lokal, memeriksa checkpoint, dan menjalankan prediksi untuk ditinjau petugas.
 - **PKRMS** — alat bantu audit/ekspor serta panel **Modul Geospasial Jalan** untuk indeks GPS, pencocokan foto ke STA, dan ekspor hasil.
 - **Integrasi Online** — fitur terkait Google Colab dan sinkronisasi PostgreSQL jika server serta kredensial tersedia.
+- **Metadata Foto** — salin EXIF antarfolder, ekspor metadata EXIF/GPS ke Excel/CSV, dan tulis koordinat GPS dari Excel/CSV ke JPG/JPEG.
 
 SQLite lokal tetap menjadi penyimpanan lokal. PostgreSQL merupakan integrasi online terpisah. Prediksi AI dan kandidat geospasial harus diverifikasi manusia sebelum dijadikan data resmi.
 
@@ -80,6 +81,15 @@ Model yang ada adalah CNN yang dilatih dari awal, bukan model pretrained. Kualit
 7. Ekspor CSV atau gunakan ekspor PKRMS yang menyertakan sheet Pemetaan STA jika hasil tersedia.
 
 Pemetaan saat ini menggunakan jarak ke titik STA hasil interpolasi dan radius pencarian. Sistem belum melakukan pencocokan arah/continuity secara komprehensif, belum mendukung KMZ langsung, dan belum menjamin foto benar-benar menggambarkan ruas yang dipilih. Periksa proyeksi/koordinat sumber dan hasil pada peta sebelum digunakan.
+
+### E. Metadata Foto
+
+1. Buka tab **Metadata Foto**.
+2. **Salin metadata EXIF** mencocokkan nama file JPG/JPEG yang sama pada dua folder. Tanpa opsi timpa, aplikasi membuat salinan berakhiran `_with_meta`; dengan opsi timpa, file tujuan yang cocok akan diganti setelah pemrosesan sementara berhasil.
+3. **Ekspor metadata** membuat file Excel atau CSV berisi nama dan path foto, koordinat GPS desimal bila tersedia, serta tag EXIF/GPS yang dapat dibaca. Foto tanpa EXIF atau yang gagal dibaca tetap dicatat dengan kolom `MetadataError`.
+4. **Impor GPS** membaca kolom `Filename`, `Latitude`, dan `Longitude` dari Excel/CSV lalu menulis koordinat ke foto JPG/JPEG yang namanya cocok. Nilai koordinat divalidasi sebelum ditulis.
+
+Fitur ini bekerja pada file JPG/JPEG langsung di folder yang dipilih (tidak menelusuri subfolder). Penulisan metadata mengubah file foto tujuan; simpan cadangan data penting sebelum operasi timpa/impor. Impor saat ini menulis koordinat GPS, bukan seluruh kolom EXIF dari spreadsheet. Tag EXIF yang berupa data biner/rasional kompleks dapat ditampilkan sebagai representasi teks, bukan selalu sebagai nilai terurai secara semantik.
 
 ### D. Integrasi Online
 
