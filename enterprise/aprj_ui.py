@@ -658,7 +658,7 @@ class RoadSurveyApp:
     def geospatial_choose_road_file(self):
         filename = filedialog.askopenfilename(
             parent=self.root, title="Pilih Geometri Ruas Jalan",
-            filetypes=[("Geometri jalan", "*.kml *.geojson *.json"), ("Semua berkas", "*.*")],
+            filetypes=[("Geometri jalan", "*.kml *.kmz *.geojson *.json"), ("Semua berkas", "*.*")],
         )
         if filename:
             self.geospatial_road_file_var.set(filename)
