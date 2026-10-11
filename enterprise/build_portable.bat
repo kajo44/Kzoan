@@ -18,7 +18,7 @@ if not exist "bin\exiftool.exe" (
     if not exist "bin" mkdir "bin"
     copy /Y "C:\Tools\ExifTool\exiftool.exe" "bin\exiftool.exe" >nul
     if exist "C:\Tools\ExifTool\exiftool_files" (
-      xcopy "C:\Tools\ExifTool\exiftool_files" "bin\exiftool_files\\" /E /I /Y >nul
+      xcopy "C:\Tools\ExifTool\exiftool_files" "bin\exiftool_files\" /E /I /Y >nul
     )
   )
 )
@@ -50,18 +50,19 @@ python -m pip install --upgrade pip
 if errorlevel 1 goto :fail
 
 echo.
-echo [1/2] Memasang seluruh dependensi dari requirements.txt...
-python -m pip install -r requirements.txt
+echo [1/2] Memasang dependency build dari requirements-build.txt...
+python -m pip install -r requirements-build.txt
 if errorlevel 1 goto :fail
 
 echo.
-echo [2/2] Memeriksa sintaks aplikasi...
-python -m py_compile aprj_main.py aprj_ui.py aprj_core.py aprj_database.py aprj_ai_model.py aprj_pkrms.py aprj_training_engine.py aprj_geospasial.py main.py APRJ_v2.py core.py database.py ai_model.py pkrms_utils.py training_engine.py
+echo [2/2] Memeriksa sintaks modul inti...
+python -m py_compile aprj_main.py aprj_ui.py aprj_core.py aprj_database.py aprj_ai_model.py aprj_pkrms.py aprj_training_engine.py aprj_geospasial.py
 if errorlevel 1 goto :fail
 
 echo.
 echo Mem-build aplikasi ONEDIR...
 python -m PyInstaller --noconfirm --clean --windowed --onedir ^
+  --contents-directory "." ^
   --name APRJ_Next ^
   --paths "." ^
   --collect-all PIL ^
@@ -80,6 +81,7 @@ python -m PyInstaller --noconfirm --clean --windowed --onedir ^
 if errorlevel 1 goto :fail
 
 if exist "..\APRJ_PORTABLE_GUIDE.txt" copy /Y "..\APRJ_PORTABLE_GUIDE.txt" "dist\APRJ_Next\APRJ_PORTABLE_GUIDE.txt" >nul
+if exist "README.md" copy /Y "README.md" "dist\APRJ_Next\PANDUAN_PENGGUNAAN.md" >nul
 
 echo.
 echo ============================================================
