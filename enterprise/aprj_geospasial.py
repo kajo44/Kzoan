@@ -15,6 +15,7 @@ import sqlite3
 import subprocess
 import threading
 import uuid
+import zipfile
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
@@ -92,35 +93,78 @@ def _geojson_lines(data):
 
 
 def _kml_lines(path):
-    tree = ET.parse(path)
-    root = tree.getroot()
-    for index, element in enumerate(root.iter(), start=1):
-        if element.tag.rsplit("}", 1)[-1] != "LineString":
-            continue
-        coord_el = next((child for child in element.iter() if child.tag.rsplit("}", 1)[-1] == "coordinates"), None)
-        if coord_el is None or not coord_el.text:
-            continue
+    """Baca garis jalan dari KML/KMZ, termasuk namespace KML dan gx:Track."""
+    path = Path(path)
+    if path.suffix.lower() == ".kmz":
+        try:
+            with zipfile.ZipFile(path, "r") as archive:
+                members = [name for name in archive.namelist() if name.lower().endswith(".kml")]
+                if not members:
+                    raise ValueError("Arsip KMZ tidak berisi file KML.")
+                member = next((name for name in members if Path(name).name.lower() == "doc.kml"), members[0])
+                root = ET.fromstring(archive.read(member))
+        except zipfile.BadZipFile as error:
+            raise ValueError("File KMZ bukan arsip ZIP/KMZ yang valid.") from error
+    else:
+        root = ET.parse(path).getroot()
+
+    def local_name(element):
+        return element.tag.rsplit("}", 1)[-1].split(":")[-1]
+
+    def parse_coordinates(text):
         coords = []
-        for item in coord_el.text.replace("\n", " ").split():
+        for item in (text or "").replace("\n", " ").replace("\r", " ").split():
             values = item.split(",")
             if len(values) >= 2:
                 try:
                     lon, lat = float(values[0]), float(values[1])
                 except ValueError:
                     continue
-                if -180 <= lon <= 180 and -90 <= lat <= 90:
+                if math.isfinite(lon) and math.isfinite(lat) and -180 <= lon <= 180 and -90 <= lat <= 90:
                     coords.append((lon, lat))
-        if len(coords) >= 2:
-            parent_name = ""
-            # Find the nearest Placemark name without requiring a KML namespace.
-            for placemark in root.iter():
-                if placemark.tag.rsplit("}", 1)[-1] != "Placemark" or element not in list(placemark.iter()):
+        return coords
+
+    index = 0
+    for placemark in (node for node in root.iter() if local_name(node) == "Placemark"):
+        name_el = next((child for child in placemark if local_name(child) == "name"), None)
+        parent_name = (name_el.text or "").strip() if name_el is not None else ""
+        for element in (node for node in placemark.iter() if local_name(node) == "LineString"):
+            coord_el = next((child for child in element.iter() if local_name(child) == "coordinates"), None)
+            coords = parse_coordinates(coord_el.text if coord_el is not None else "")
+            if len(coords) >= 2:
+                index += 1
+                name = parent_name or f"Ruas-{index}"
+                yield (name if parent_name else f"ruas-{index}"), name, coords
+
+        # Sebagian KML menggunakan gx:Track dengan format koordinat "lon lat alt".
+        for track in (node for node in placemark.iter() if local_name(node) == "Track"):
+            coords = []
+            for coord_el in track.iter():
+                if local_name(coord_el) != "coord" or not coord_el.text:
                     continue
-                name_el = next((child for child in placemark.iter() if child.tag.rsplit("}", 1)[-1] == "name"), None)
-                parent_name = (name_el.text or "").strip() if name_el is not None else ""
-                break
-            name = parent_name or f"Ruas-{index}"
-            yield name, name, coords
+                values = coord_el.text.strip().split()
+                if len(values) < 2:
+                    continue
+                try:
+                    lon, lat = float(values[0]), float(values[1])
+                except ValueError:
+                    continue
+                if math.isfinite(lon) and math.isfinite(lat) and -180 <= lon <= 180 and -90 <= lat <= 90:
+                    coords.append((lon, lat))
+            if len(coords) >= 2:
+                index += 1
+                name = parent_name or f"Ruas-{index}"
+                yield (name if parent_name else f"ruas-{index}"), name, coords
+
+    # Tangani pula LineString tanpa Placemark, yang ditemukan pada beberapa ekspor.
+    if index == 0:
+        for element in (node for node in root.iter() if local_name(node) == "LineString"):
+            coord_el = next((child for child in element.iter() if local_name(child) == "coordinates"), None)
+            coords = parse_coordinates(coord_el.text if coord_el is not None else "")
+            if len(coords) >= 2:
+                index += 1
+                name = f"Ruas-{index}"
+                yield f"ruas-{index}", name, coords
 
 
 def load_road_segments(path):
@@ -130,12 +174,16 @@ def load_road_segments(path):
     if suffix in {".json", ".geojson"}:
         data = json.loads(path.read_text(encoding="utf-8-sig"))
         segments = list(_geojson_lines(data))
-    elif suffix == ".kml":
+    elif suffix in {".kml", ".kmz"}:
         segments = list(_kml_lines(path))
     else:
-        raise ValueError("Format geometri belum didukung. Gunakan file .kml, .geojson, atau .json.")
+        raise ValueError("Format geometri belum didukung. Gunakan file .kml, .kmz, .geojson, atau .json.")
     if not segments:
-        raise ValueError("Tidak ditemukan geometri LineString yang valid pada file ruas.")
+        raise ValueError(
+            "Tidak ditemukan geometri garis jalan yang valid. Pastikan file berisi "
+            "LineString/garis koordinat dengan minimal dua titik; file yang hanya "
+            "berisi Point atau poligon belum dapat dipakai sebagai garis ruas."
+        )
     return segments
 
 
