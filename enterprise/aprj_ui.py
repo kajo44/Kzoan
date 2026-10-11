@@ -194,6 +194,7 @@ class RoadSurveyApp:
         self.map_matching_gap_var = tk.StringVar(value="10")
         self.map_matching_use_heading_var = tk.BooleanVar(value=True)
         self.map_matching_use_speed_var = tk.BooleanVar(value=True)
+        self.map_matching_use_hmm_var = tk.BooleanVar(value=True)
         self.map_matching_organize_var = tk.StringVar(value="Ruas")
         self.map_matching_output_var = tk.StringVar(value="")
         self.map_matching_status = tk.StringVar(value="Siap. Pilih folder foto dan geometri ruas jalan.")
@@ -639,11 +640,13 @@ class RoadSurveyApp:
                         variable=self.map_matching_use_heading_var).grid(row=1, column=0, columnspan=3, sticky="w", padx=7, pady=(0, 6))
         ttk.Checkbutton(config, text="Tolak kecepatan antar-foto di atas batas",
                         variable=self.map_matching_use_speed_var).grid(row=1, column=3, columnspan=3, sticky="w", padx=7, pady=(0, 6))
+        ttk.Checkbutton(config, text="Gunakan HMM/Viterbi (konsistensi urutan foto)",
+                        variable=self.map_matching_use_hmm_var).grid(row=2, column=0, columnspan=5, sticky="w", padx=7, pady=(0, 6))
         ttk.Label(
             config,
-            text="Catatan: arah ruas mengikuti urutan vertex geometri. Bila arah digitasi terbalik atau EXIF arah tidak tersedia, periksa hasil secara manual.",
+            text="Catatan: HMM/Viterbi menilai urutan kandidat per folder dan waktu. Tanpa topologi jaringan, transisi memakai jarak antarproyeksi; hasil tetap perlu verifikasi.",
             wraplength=1050,
-        ).grid(row=2, column=0, columnspan=10, sticky="w", padx=7, pady=(0, 6))
+        ).grid(row=3, column=0, columnspan=10, sticky="w", padx=7, pady=(0, 6))
 
         actions = ttk.LabelFrame(panel, text="3. Proses dan ekspor")
         actions.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(0, 7))
@@ -736,6 +739,7 @@ class RoadSurveyApp:
             max_speed_kmh=speed, heading_tolerance_deg=heading, max_time_gap_s=gap,
             use_heading=self.map_matching_use_heading_var.get(),
             use_speed=self.map_matching_use_speed_var.get(),
+            use_hmm=self.map_matching_use_hmm_var.get(),
             cancel_event=self.map_matching_cancel_event,
         )
         def progress(stage, current, total, message):
