@@ -1,5 +1,17 @@
-# Dependensi aplikasi APRJ/PKRMS untuk Windows 64-bit
+# APRJ Next - direct runtime and build dependencies
+# Target: Windows 10/11 x64, Python 3.11 x64
+# PyTorch CPU wheel source; PyPI remains the primary index.
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# AI training and inference (CPU; no CUDA/GPU requirement)
+torch>=2.5,<3
+
+# UI image processing and survey spreadsheet handling
 Pillow>=10.0,<13
 openpyxl>=3.1,<4
+
+# Optional PostgreSQL integration
 psycopg2-binary>=2.9,<3
+
+# Portable Windows build
 PyInstaller>=6.10,<7
