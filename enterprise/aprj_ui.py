@@ -25,6 +25,7 @@ import aprj_pkrms as pkrms_utils
 import aprj_training_engine as training_engine
 from aprj_geospasial import GeospatialEngine
 from aprj_metadata import PhotoMetadataTab
+from aprj_map_matching import MapMatchingEngine
 from aprj_core import (
     APP_NAME, APP_ROOT, APP_LOGS, APP_ERROR_LOG, SURVEY_AI_ROOT,
     SURVEY_AI_DATASET, SURVEY_AI_IMAGES, SURVEY_AI_MANIFEST, SURVEY_AI_RUNS,
@@ -179,6 +180,23 @@ class RoadSurveyApp:
         self.geospatial_interval_var = tk.StringVar(value="100")
         self.geospatial_radius_var = tk.StringVar(value="100")
         self.geospatial_status = tk.StringVar(value="Siap. Pilih folder foto dan file geometri ruas.")
+
+        # Map Matching: konfigurasi dan hasil disimpan terpisah dari data survei/PKRMS.
+        self.map_matching_engine = None
+        self.map_matching_running = False
+        self.map_matching_cancel_event = threading.Event()
+        self.map_matching_photo_root_var = tk.StringVar(value="")
+        self.map_matching_road_file_var = tk.StringVar(value="")
+        self.map_matching_interval_var = tk.StringVar(value="100")
+        self.map_matching_radius_var = tk.StringVar(value="50")
+        self.map_matching_speed_var = tk.StringVar(value="40")
+        self.map_matching_heading_var = tk.StringVar(value="65")
+        self.map_matching_gap_var = tk.StringVar(value="10")
+        self.map_matching_use_heading_var = tk.BooleanVar(value=True)
+        self.map_matching_use_speed_var = tk.BooleanVar(value=True)
+        self.map_matching_organize_var = tk.StringVar(value="Ruas")
+        self.map_matching_output_var = tk.StringVar(value="")
+        self.map_matching_status = tk.StringVar(value="Siap. Pilih folder foto dan geometri ruas jalan.")
         
         self.original_image = None
         self.zoom_scale = 1.0
@@ -372,7 +390,7 @@ class RoadSurveyApp:
         
         self.notebook.add(self.survey_tab, text="Survei Jalan")
         self.notebook.add(self.ai_tab, text="Rekayasa AI")
-        self.notebook.add(self.pkrms_tab, text="PKRMS")
+        self.notebook.add(self.pkrms_tab, text="Map Matching")
         self.notebook.add(self.online_tab, text="Integrasi Online")
         self.notebook.add(self.metadata_tab, text="Metadata Foto")
         self.build_pkrms_tab()
@@ -573,34 +591,284 @@ class RoadSurveyApp:
         self.build_ai_tab()
 
     def build_pkrms_tab(self):
-        """Antarmuka PKRMS: template, audit dataset, dan ekspor catatan survei."""
+        """Bangun ulang tab sebagai workspace Map Matching."""
         self.pkrms_tab.columnconfigure(0, weight=1)
+        self.pkrms_tab.rowconfigure(2, weight=1)
         ttk.Label(
-            self.pkrms_tab,
-            text="PKRMS — Pengelolaan Data Survei Jalan",
-            font=("Segoe UI", 15, "bold"),
+            self.pkrms_tab, text="Map Matching Foto ke Ruas dan STA",
+            font=("Segoe UI", 16, "bold"),
         ).grid(row=0, column=0, sticky="w", pady=(0, 4))
         ttk.Label(
             self.pkrms_tab,
-            text="Siapkan template, audit foto/dataset, dan ekspor catatan survei ke Excel. "
-                 "Data yang belum dinilai tidak diberi label kondisi secara otomatis.",
-            wraplength=1000,
-        ).grid(row=1, column=0, sticky="w", pady=(0, 12))
-        actions = ttk.LabelFrame(self.pkrms_tab, text="Operasi PKRMS")
-        actions.grid(row=2, column=0, sticky="new", pady=5)
-        ttk.Button(actions, text="Buat Template PKRMS Excel", command=self.pkrms_create_template).grid(row=0, column=0, padx=6, pady=8, sticky="w")
-        ttk.Button(actions, text="Ekspor Data Survei ke PKRMS", command=self.pkrms_export_report).grid(row=0, column=1, padx=6, pady=8, sticky="w")
-        ttk.Button(actions, text="Audit Folder Foto", command=self.pkrms_audit_dataset).grid(row=0, column=2, padx=6, pady=8, sticky="w")
-        ttk.Button(actions, text="Audit Dataset Klasifikasi", command=self.pkrms_audit_classified_dataset).grid(row=1, column=0, padx=6, pady=8, sticky="w")
-        ttk.Button(actions, text="Ekspor Rekap Dataset Klasifikasi", command=self.pkrms_export_classified_dataset).grid(row=1, column=1, padx=6, pady=8, sticky="w")
-        self.pkrms_status = tk.StringVar(value="Siap. Pilih operasi PKRMS yang diperlukan.")
-        ttk.Label(self.pkrms_tab, textvariable=self.pkrms_status, wraplength=1000, justify="left").grid(row=3, column=0, sticky="nw", pady=10)
+            text=("Memadankan foto ber-GPS ke geometri ruas menggunakan jarak, arah kamera, "
+                  "urutan waktu, dan kecepatan antar-foto. Semua hasil adalah kandidat yang perlu diverifikasi."),
+            wraplength=1100,
+        ).grid(row=1, column=0, sticky="w", pady=(0, 10))
+        self.build_map_matching_panel()
+
+    def build_map_matching_panel(self):
+        panel = ttk.Frame(self.pkrms_tab)
+        panel.grid(row=2, column=0, sticky="nsew")
+        panel.columnconfigure(1, weight=1)
+        panel.rowconfigure(5, weight=1)
+
+        source = ttk.LabelFrame(panel, text="1. Sumber data")
+        source.grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, 7))
+        source.columnconfigure(1, weight=1)
+        ttk.Label(source, text="Folder root foto:").grid(row=0, column=0, sticky="w", padx=7, pady=5)
+        ttk.Entry(source, textvariable=self.map_matching_photo_root_var).grid(row=0, column=1, sticky="ew", padx=5, pady=5)
+        ttk.Button(source, text="Pilih Folder", command=self.map_matching_choose_photo_root).grid(row=0, column=2, padx=5, pady=5)
+        ttk.Label(source, text="Geometri ruas:").grid(row=1, column=0, sticky="w", padx=7, pady=5)
+        ttk.Entry(source, textvariable=self.map_matching_road_file_var).grid(row=1, column=1, sticky="ew", padx=5, pady=5)
+        ttk.Button(source, text="Pilih KML/KMZ/GeoJSON", command=self.map_matching_choose_road_file).grid(row=1, column=2, padx=5, pady=5)
+
+        config = ttk.LabelFrame(panel, text="2. Parameter akurasi")
+        config.grid(row=1, column=0, columnspan=4, sticky="ew", pady=(0, 7))
+        fields = [
+            ("Interval STA (m)", self.map_matching_interval_var, 8),
+            ("Radius ruas (m)", self.map_matching_radius_var, 8),
+            ("Batas kecepatan (km/jam)", self.map_matching_speed_var, 8),
+            ("Toleransi arah (°)", self.map_matching_heading_var, 8),
+            ("Jendela waktu (detik)", self.map_matching_gap_var, 8),
+        ]
+        for i, (label, variable, width) in enumerate(fields):
+            col = i * 2
+            ttk.Label(config, text=label).grid(row=0, column=col, sticky="w", padx=(7, 3), pady=5)
+            ttk.Entry(config, textvariable=variable, width=width).grid(row=0, column=col+1, sticky="w", padx=(0, 8), pady=5)
+        ttk.Checkbutton(config, text="Gunakan arah kamera EXIF bila tersedia",
+                        variable=self.map_matching_use_heading_var).grid(row=1, column=0, columnspan=3, sticky="w", padx=7, pady=(0, 6))
+        ttk.Checkbutton(config, text="Tolak kecepatan antar-foto di atas batas",
+                        variable=self.map_matching_use_speed_var).grid(row=1, column=3, columnspan=3, sticky="w", padx=7, pady=(0, 6))
         ttk.Label(
-            self.pkrms_tab,
-            text="Catatan: template ini adalah struktur kerja dan bukan pengganti validasi terhadap format resmi PKRMS.",
-            wraplength=1000,
-        ).grid(row=4, column=0, sticky="w", pady=(8, 0))
-        self.build_geospatial_panel()
+            config,
+            text="Catatan: arah ruas mengikuti urutan vertex geometri. Bila arah digitasi terbalik atau EXIF arah tidak tersedia, periksa hasil secara manual.",
+            wraplength=1050,
+        ).grid(row=2, column=0, columnspan=10, sticky="w", padx=7, pady=(0, 6))
+
+        actions = ttk.LabelFrame(panel, text="3. Proses dan ekspor")
+        actions.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(0, 7))
+        self.map_matching_run_button = ttk.Button(actions, text="Jalankan Batch Map Matching", command=self.start_map_matching)
+        self.map_matching_run_button.grid(row=0, column=0, padx=5, pady=6, sticky="w")
+        self.map_matching_cancel_button = ttk.Button(actions, text="Batalkan", command=self.cancel_map_matching, state="disabled")
+        self.map_matching_cancel_button.grid(row=0, column=1, padx=5, pady=6, sticky="w")
+        ttk.Button(actions, text="Ekspor CSV Lengkap", command=self.map_matching_export_csv).grid(row=0, column=2, padx=5, pady=6)
+        ttk.Button(actions, text="Ekspor STA KML", command=self.map_matching_export_kml).grid(row=0, column=3, padx=5, pady=6)
+        ttk.Button(actions, text="Buat KMZ Foto GPS", command=self.map_matching_create_kmz).grid(row=0, column=4, padx=5, pady=6)
+        ttk.Label(actions, text="Folder output foto:").grid(row=1, column=0, sticky="w", padx=5, pady=5)
+        ttk.Entry(actions, textvariable=self.map_matching_output_var, width=48).grid(row=1, column=1, columnspan=3, sticky="ew", padx=5, pady=5)
+        ttk.Button(actions, text="Pilih Folder Output", command=self.map_matching_choose_output).grid(row=1, column=4, padx=5, pady=5)
+        ttk.Label(actions, text="Susun folder:").grid(row=2, column=0, sticky="w", padx=5, pady=5)
+        ttk.Radiobutton(actions, text="Per ruas", variable=self.map_matching_organize_var, value="Ruas").grid(row=2, column=1, sticky="w")
+        ttk.Radiobutton(actions, text="Per ruas dan interval STA", variable=self.map_matching_organize_var, value="STA").grid(row=2, column=2, columnspan=2, sticky="w")
+        ttk.Button(actions, text="Salin Foto Terpilih", command=self.map_matching_copy_photos).grid(row=2, column=4, padx=5, pady=5)
+
+        ttk.Label(panel, textvariable=self.map_matching_status, wraplength=1100, justify="left").grid(
+            row=3, column=0, columnspan=4, sticky="ew", pady=(0, 6)
+        )
+        columns = ("road", "sta", "photo", "distance", "heading", "time", "status")
+        self.map_matching_tree = ttk.Treeview(panel, columns=columns, show="headings", height=10)
+        headings = [
+            ("road", "Ruas", 200), ("sta", "STA (m)", 75), ("photo", "Nama file foto", 240),
+            ("distance", "Jarak (m)", 80), ("heading", "Selisih arah (°)", 100),
+            ("time", "Waktu foto", 145), ("status", "Status validasi", 230),
+        ]
+        for key, title, width in headings:
+            self.map_matching_tree.heading(key, text=title)
+            self.map_matching_tree.column(key, width=width, anchor="w")
+        self.map_matching_tree.grid(row=5, column=0, columnspan=4, sticky="nsew")
+        scroll = ttk.Scrollbar(panel, orient="vertical", command=self.map_matching_tree.yview)
+        scroll.grid(row=5, column=4, sticky="ns")
+        self.map_matching_tree.configure(yscrollcommand=scroll.set)
+
+        self.pkrms_status = self.map_matching_status
+
+    def map_matching_choose_photo_root(self):
+        folder = filedialog.askdirectory(parent=self.root, title="Pilih Folder Root Foto (subfolder dipindai)")
+        if folder:
+            self.map_matching_photo_root_var.set(folder)
+            if not self.map_matching_output_var.get().strip():
+                self.map_matching_output_var.set(str(Path(folder).parent / f"{Path(folder).name}_matched"))
+
+    def map_matching_choose_road_file(self):
+        filename = filedialog.askopenfilename(
+            parent=self.root, title="Pilih Geometri Ruas Jalan",
+            filetypes=[("Geometri jalan", "*.kml *.kmz *.geojson *.json"), ("Semua berkas", "*.*")],
+        )
+        if filename:
+            self.map_matching_road_file_var.set(filename)
+
+    def map_matching_choose_output(self):
+        folder = filedialog.askdirectory(parent=self.root, title="Pilih Folder Output Foto")
+        if folder:
+            self.map_matching_output_var.set(folder)
+
+    def start_map_matching(self):
+        if self.map_matching_running:
+            return
+        photo_root = self.map_matching_photo_root_var.get().strip()
+        road_file = self.map_matching_road_file_var.get().strip()
+        try:
+            interval = int(self.map_matching_interval_var.get().strip())
+            radius = float(self.map_matching_radius_var.get().strip())
+            speed = float(self.map_matching_speed_var.get().strip())
+            heading = float(self.map_matching_heading_var.get().strip())
+            gap = float(self.map_matching_gap_var.get().strip())
+            if not photo_root or not Path(photo_root).is_dir():
+                raise ValueError("Pilih folder root foto yang tersedia.")
+            if not road_file or not Path(road_file).is_file():
+                raise ValueError("Pilih file geometri ruas yang tersedia.")
+            if interval < 1 or not 1 <= radius <= 5000 or not 1 <= speed <= 160:
+                raise ValueError("Periksa interval STA, radius 1–5000 m, dan kecepatan 1–160 km/jam.")
+            if not 1 <= heading <= 180 or not 1 <= gap <= 300:
+                raise ValueError("Toleransi arah harus 1–180° dan jendela waktu 1–300 detik.")
+            engine = MapMatchingEngine(APP_ROOT)
+        except Exception as error:
+            messagebox.showwarning("Map Matching", str(error), parent=self.root)
+            return
+        self.map_matching_engine = engine
+        self.map_matching_cancel_event = threading.Event()
+        self.map_matching_running = True
+        self.map_matching_run_button.configure(state="disabled")
+        self.map_matching_cancel_button.configure(state="normal")
+        self.map_matching_status.set("Menyiapkan indeks ruas dan membaca metadata EXIF secara batch...")
+        options = dict(
+            photo_root=photo_root, road_file=road_file, interval_m=interval, radius_m=radius,
+            max_speed_kmh=speed, heading_tolerance_deg=heading, max_time_gap_s=gap,
+            use_heading=self.map_matching_use_heading_var.get(),
+            use_speed=self.map_matching_use_speed_var.get(),
+            cancel_event=self.map_matching_cancel_event,
+        )
+        def progress(stage, current, total, message):
+            try:
+                self.root.after(0, lambda text=message: self.map_matching_status.set(text))
+            except tk.TclError:
+                pass
+        def worker():
+            error = None
+            try:
+                engine.run(progress=progress, **options)
+            except Exception as caught:
+                error = caught
+            try:
+                self.root.after(0, lambda: self.finish_map_matching(error))
+            except tk.TclError:
+                pass
+        threading.Thread(target=worker, name="APRJMapMatching", daemon=True).start()
+
+    def finish_map_matching(self, error):
+        self.map_matching_running = False
+        self.map_matching_run_button.configure(state="normal")
+        self.map_matching_cancel_button.configure(state="disabled")
+        if error:
+            self.map_matching_status.set(f"Map Matching gagal/batal: {error}")
+            log_application_error("Map Matching", type(error), error, error.__traceback__)
+            if not isinstance(error, InterruptedError):
+                messagebox.showerror("Map Matching", str(error), parent=self.root)
+            return
+        self.map_matching_tree.delete(*self.map_matching_tree.get_children())
+        rows = self.map_matching_engine.last_results
+        for row in rows:
+            distance = row.get("distance_m")
+            heading = row.get("heading_difference_deg")
+            self.map_matching_tree.insert("", "end", values=(
+                f'{row.get("road_id","")} — {row.get("road_name","")}', row.get("sta_m",""),
+                row.get("photo_name",""), f"{distance:.1f}" if distance is not None else "—",
+                f"{heading:.1f}" if heading is not None else "—",
+                row.get("taken_at_text","") or "—", row.get("match_status",""),
+            ))
+        self.map_matching_status.set(
+            f"Selesai: {len(self.map_matching_engine.last_diagnostics)} foto ber-GPS/diagnostik; "
+            f"{len(rows)} foto terpilih pada STA. Tinjau arah ruas dan hasil di peta sebelum dipakai resmi."
+        )
+
+    def cancel_map_matching(self):
+        if self.map_matching_running:
+            self.map_matching_cancel_event.set()
+            self.map_matching_status.set("Permintaan pembatalan dikirim; proses berhenti pada checkpoint berikutnya.")
+
+    def _require_map_matching_results(self):
+        if not self.map_matching_engine or not self.map_matching_engine.last_results:
+            messagebox.showinfo("Map Matching", "Jalankan Map Matching terlebih dahulu agar hasil tersedia.", parent=self.root)
+            return False
+        return True
+
+    def map_matching_export_csv(self):
+        if not self._require_map_matching_results():
+            return
+        destination = filedialog.asksaveasfilename(
+            parent=self.root, title="Ekspor Diagnostik Map Matching", defaultextension=".csv",
+            initialfile="hasil_map_matching_lengkap.csv", filetypes=[("CSV", "*.csv")],
+        )
+        if not destination:
+            return
+        try:
+            count = self.map_matching_engine.export_csv(destination)
+            self.map_matching_status.set(f"CSV lengkap diekspor ({count} foto diagnostik): {destination}")
+            messagebox.showinfo("Map Matching", self.map_matching_status.get(), parent=self.root)
+        except Exception as error:
+            messagebox.showerror("Ekspor CSV", str(error), parent=self.root)
+
+    def map_matching_export_kml(self):
+        if not self._require_map_matching_results():
+            return
+        destination = filedialog.asksaveasfilename(
+            parent=self.root, title="Ekspor Titik STA ke KML", defaultextension=".kml",
+            initialfile="hasil_sta_map_matching.kml", filetypes=[("KML", "*.kml")],
+        )
+        if not destination:
+            return
+        try:
+            count = self.map_matching_engine.export_sta_kml(destination)
+            self.map_matching_status.set(f"KML STA diekspor ({count} titik): {destination}")
+            messagebox.showinfo("Ekspor KML", self.map_matching_status.get(), parent=self.root)
+        except Exception as error:
+            messagebox.showerror("Ekspor KML", str(error), parent=self.root)
+
+    def map_matching_copy_photos(self):
+        if not self._require_map_matching_results():
+            return
+        destination = self.map_matching_output_var.get().strip()
+        if not destination:
+            self.map_matching_choose_output()
+            destination = self.map_matching_output_var.get().strip()
+        if not destination:
+            return
+        if Path(destination).resolve() == Path(self.map_matching_engine.last_root).resolve():
+            messagebox.showwarning("Salin Foto", "Folder output tidak boleh sama dengan folder sumber.", parent=self.root)
+            return
+        try:
+            copied, errors = self.map_matching_engine.copy_matched_photos(
+                destination, organize_by="sta" if self.map_matching_organize_var.get() == "STA" else "road"
+            )
+            message = f"Foto disalin: {copied}\\nGagal: {len(errors)}"
+            if errors:
+                message += "\\n\\n" + "\\n".join(errors[:8])
+            self.map_matching_status.set(message)
+            messagebox.showinfo("Salin Foto Hasil", message, parent=self.root)
+        except Exception as error:
+            messagebox.showerror("Salin Foto Hasil", str(error), parent=self.root)
+
+    def map_matching_create_kmz(self):
+        folder = self.map_matching_photo_root_var.get().strip()
+        if not folder or not Path(folder).is_dir():
+            messagebox.showwarning("KMZ Foto GPS", "Pilih folder root foto terlebih dahulu.", parent=self.root)
+            return
+        try:
+            engine = self.map_matching_engine or MapMatchingEngine(APP_ROOT)
+            destination = filedialog.asksaveasfilename(
+                parent=self.root, title="Simpan KMZ Foto GPS", defaultextension=".kmz",
+                initialfile=f"{Path(folder).name}_photos.kmz", filetypes=[("KMZ", "*.kmz")],
+                initialdir=folder,
+            )
+            if not destination:
+                return
+            output, count, log_path = engine.create_photo_kmz(folder, destination)
+            message = f"KMZ dibuat: {output}\\nFoto ber-GPS: {count}\\nLog: {log_path}"
+            self.map_matching_status.set(message)
+            messagebox.showinfo("KMZ Foto GPS", message, parent=self.root)
+        except Exception as error:
+            log_application_error("Pembuatan KMZ Foto GPS", type(error), error, error.__traceback__)
+            messagebox.showerror("KMZ Foto GPS", str(error), parent=self.root)
 
     def build_geospatial_panel(self):
         """Panel Modul Geospasial Jalan di dalam tab PKRMS."""
