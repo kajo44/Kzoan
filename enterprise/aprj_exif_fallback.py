@@ -52,8 +52,12 @@ def _dms_to_decimal(value, reference=""):
 
 def _read_one(path):
     path = Path(path)
+    try:
+        source_path = str(path.resolve())
+    except OSError:
+        source_path = str(path.absolute())
     item = {
-        "SourceFile": str(path.resolve()),
+        "SourceFile": source_path,
         "FileName": path.name,
         "Directory": str(path.parent),
     }
@@ -92,9 +96,9 @@ def _read_one(path):
             if direction is not None:
                 item["GPSImgDirection"] = direction % 360.0
                 item["GPSImgDirectionRef"] = _as_text(gps.get("GPSImgDirectionRef") or "T").upper()
-    except (OSError, ValueError, SyntaxError):
+    except Exception:
         # File rusak/tidak didukung: tetap kembalikan SourceFile agar proses batch lanjut.
-        pass
+        # Exception sengaja dibatasi per-file, bukan membatalkan seluruh batch.
     return item
 
 
