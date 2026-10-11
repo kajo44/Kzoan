@@ -1,6 +1,7 @@
 # APRJ Next - direct runtime dependencies
 # Target: Windows 10/11 x64, Python 3.11 x64
-# These are direct dependencies imported by the application.
+# Direct runtime dependencies for the supported Windows/Python environment.
+# Pillow also provides a basic EXIF fallback when local ExifTool is unavailable.
 # PyTorch CPU wheel source; PyPI remains the primary index.
 --extra-index-url https://download.pytorch.org/whl/cpu
 
@@ -8,7 +9,7 @@ torch>=2.5,<3
 Pillow>=10.0,<13
 openpyxl>=3.1,<4
 
-# Optional feature: PostgreSQL synchronization.
+# PostgreSQL synchronization dependency (connection is only used when configured).
 psycopg2-binary>=2.9,<3
 
 piexif>=1.1.3,<2
