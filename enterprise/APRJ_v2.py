@@ -861,6 +861,7 @@ class RoadSurveyApp:
         self.cancel_training_button.grid(row=0, column=7, padx=5)
         
         ttk.Button(training_frame, text="Buka Folder AI", command=self.open_ai_folder).grid(row=0, column=8, padx=5)
+        ttk.Button(training_frame, text="Periksa Kesiapan Model", command=self.check_ai_inference_readiness).grid(row=1, column=0, columnspan=3, padx=5, pady=5, sticky="w")
         
         ttk.Label(training_frame, textvariable=self.ai_training_status, wraplength=900).grid(row=2, column=0, columnspan=9, sticky="w", padx=5, pady=5)
         self.refresh_training_dataset_view()
@@ -986,6 +987,25 @@ class RoadSurveyApp:
         if self.training_running:
             return
         messagebox.showinfo("Training AI belum tersedia", "Antarmuka pengelolaan dataset tersedia, tetapi pipeline training belum diimplementasikan pada file ini. Jangan anggap model AI sudah terlatih.")
+
+    def check_ai_inference_readiness(self):
+        """Laporkan kesiapan inferensi tanpa menghasilkan prediksi buatan."""
+        model_path = SURVEY_AI_MODEL
+        if not ai_model.TORCH_AVAILABLE:
+            message = "PyTorch belum tersedia. Inferensi tidak dapat dijalankan."
+        elif not model_path.is_file():
+            message = (
+                "PyTorch tersedia, tetapi file model terlatih belum ditemukan:\n"
+                f"{model_path}"
+            )
+        else:
+            message = (
+                "File model ditemukan, tetapi loader checkpoint dan pemetaan output "
+                "inferensi belum diimplementasikan. Belum ada prediksi yang dapat "
+                "diterapkan ke formulir survei."
+            )
+        self.ai_training_status.set(message)
+        messagebox.showinfo("Kesiapan Inferensi AI", message, parent=self.root)
 
     def cancel_survey_training(self):
         self.training_cancel_event.set()
