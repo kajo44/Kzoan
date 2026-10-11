@@ -491,7 +491,9 @@ class RoadSurveyApp:
         actions.grid(row=2, column=0, sticky="new", pady=5)
         ttk.Button(actions, text="Buat Template PKRMS Excel", command=self.pkrms_create_template).grid(row=0, column=0, padx=6, pady=8, sticky="w")
         ttk.Button(actions, text="Ekspor Data Survei ke PKRMS", command=self.pkrms_export_report).grid(row=0, column=1, padx=6, pady=8, sticky="w")
-        ttk.Button(actions, text="Audit Folder Dataset", command=self.pkrms_audit_dataset).grid(row=0, column=2, padx=6, pady=8, sticky="w")
+        ttk.Button(actions, text="Audit Folder Foto", command=self.pkrms_audit_dataset).grid(row=0, column=2, padx=6, pady=8, sticky="w")
+        ttk.Button(actions, text="Audit Dataset Klasifikasi", command=self.pkrms_audit_classified_dataset).grid(row=1, column=0, padx=6, pady=8, sticky="w")
+        ttk.Button(actions, text="Ekspor Rekap Dataset Klasifikasi", command=self.pkrms_export_classified_dataset).grid(row=1, column=1, padx=6, pady=8, sticky="w")
         self.pkrms_status = tk.StringVar(value="Siap. Pilih operasi PKRMS yang diperlukan.")
         ttk.Label(self.pkrms_tab, textvariable=self.pkrms_status, wraplength=1000, justify="left").grid(row=3, column=0, sticky="nw", pady=10)
         ttk.Label(
@@ -573,6 +575,48 @@ class RoadSurveyApp:
         except Exception as error:
             log_application_error("Ekspor data PKRMS", type(error), error, error.__traceback__)
             messagebox.showerror("PKRMS", f"Gagal mengekspor data:\n{error}", parent=self.root)
+
+    def pkrms_audit_classified_dataset(self):
+        """Gunakan utilitas dataset klasifikasi dari implementasi modular lama."""
+        try:
+            report = pkrms_utils.audit_dataset()
+            lines = ["Audit folder dataset klasifikasi (APP_ROOT/dataset):", ""]
+            lines.append("Kondisi jalan:")
+            lines.extend(f"  {label}: {count} foto" for label, count in report["condition_counts"].items())
+            lines.append("")
+            lines.append("Jenis perkerasan:")
+            lines.extend(f"  {label}: {count} foto" for label, count in report["surface_counts"].items())
+            lines.extend([
+                "",
+                "Audit ini menghitung file gambar berdasarkan folder kelas.",
+                "Audit tidak membuktikan label benar atau model AI telah dilatih.",
+            ])
+            result = "\n".join(lines)
+            self.pkrms_status.set(result)
+            messagebox.showinfo("Audit Dataset Klasifikasi", result, parent=self.root)
+        except Exception as error:
+            log_application_error("Audit dataset klasifikasi", type(error), error, error.__traceback__)
+            messagebox.showerror("Audit Dataset", str(error), parent=self.root)
+
+    def pkrms_export_classified_dataset(self):
+        destination = filedialog.asksaveasfilename(
+            parent=self.root,
+            title="Ekspor Rekap Dataset Klasifikasi",
+            defaultextension=".xlsx",
+            filetypes=[("Excel Workbook", "*.xlsx")],
+            initialfile="rekap_dataset_klasifikasi.xlsx",
+        )
+        if not destination:
+            return
+        try:
+            counts = pkrms_utils.export_pkrms_report(destination)
+            summary = ", ".join(f"{label}: {count}" for label, count in counts.items())
+            message = f"Rekap dataset diekspor ke:\n{destination}\n\nJumlah foto per kelas: {summary}"
+            self.pkrms_status.set(message)
+            messagebox.showinfo("Ekspor Dataset", message, parent=self.root)
+        except Exception as error:
+            log_application_error("Ekspor rekap dataset klasifikasi", type(error), error, error.__traceback__)
+            messagebox.showerror("Ekspor Dataset", str(error), parent=self.root)
 
     def pkrms_audit_dataset(self):
         try:
