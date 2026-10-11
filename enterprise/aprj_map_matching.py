@@ -174,22 +174,27 @@ class MapMatchingEngine:
         ):
             if p.is_file():
                 return p
-        raise FileNotFoundError("ExifTool tidak ditemukan. Pastikan bin\\\\exiftool.exe ikut dalam folder aplikasi.")
+        # Pillow digunakan sebagai fallback untuk EXIF dasar; ExifTool tetap lebih lengkap.
+        return None
 
     def _read_batch(self, paths):
-        command = [
-            str(self.exiftool), "-json", "-n", "-GPSLatitude", "-GPSLongitude",
-            "-GPSImgDirection", "-GPSImgDirectionRef", "-DateTimeOriginal", "-CreateDate",
-            "-FileName", "-Directory", "--",
-        ] + [str(p) for p in paths]
-        completed = subprocess.run(command, capture_output=True, text=True, encoding="utf-8",
-                                   errors="replace", timeout=240, check=False)
-        if completed.returncode not in (0, 1):
-            raise RuntimeError(f"ExifTool gagal (kode {completed.returncode}): {completed.stderr[:800]}")
-        try:
-            items = json.loads(completed.stdout or "[]")
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(f"Respons EXIF bukan JSON valid: {exc}") from exc
+        if self.exiftool is None:
+            from aprj_exif_fallback import read_metadata_batch
+            items = list(read_metadata_batch(paths).values())
+        else:
+            command = [
+                str(self.exiftool), "-json", "-n", "-GPSLatitude", "-GPSLongitude",
+                "-GPSImgDirection", "-GPSImgDirectionRef", "-DateTimeOriginal", "-CreateDate",
+                "-FileName", "-Directory", "--",
+            ] + [str(p) for p in paths]
+            completed = subprocess.run(command, capture_output=True, text=True, encoding="utf-8",
+                                       errors="replace", timeout=240, check=False)
+            if completed.returncode not in (0, 1):
+                raise RuntimeError(f"ExifTool gagal (kode {completed.returncode}): {completed.stderr[:800]}")
+            try:
+                items = json.loads(completed.stdout or "[]")
+            except json.JSONDecodeError as exc:
+                raise RuntimeError(f"Respons EXIF bukan JSON valid: {exc}") from exc
         rows = []
         for item in items if isinstance(items, list) else []:
             try:
