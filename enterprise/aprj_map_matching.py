@@ -7,6 +7,7 @@ Hasil tetap merupakan kandidat dan harus diperiksa pada peta/foto sumber.
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import math
 import os
@@ -436,7 +437,8 @@ class MapMatchingEngine:
                 target_dir.mkdir(parents=True, exist_ok=True)
                 target = target_dir / source.name
                 if target.exists():
-                    target = target_dir / f"{source.stem}_{abs(hash(str(source))) & 0xffffffff:08x}{source.suffix}"
+                    digest = hashlib.sha1(str(source).encode("utf-8", errors="replace")).hexdigest()[:8]
+                    target = target_dir / f"{source.stem}_{digest}{source.suffix}"
                 shutil.copy2(source, target)
                 copied += 1
             except OSError as exc:
