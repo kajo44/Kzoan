@@ -1,34 +1,24 @@
 # -*- coding: utf-8 -*-
-"""
-Modul Core: Konfigurasi Global, Konstanta, Path Portabel, dan Sistem Logging.
-Bertanggung jawab atas struktur direktori dan konfigurasi dasar aplikasi APRJ & PKRMS.
-"""
-
+"""Konfigurasi, path portabel, dan logging APRJ/PKRMS."""
 import logging
 import sys
 from pathlib import Path
 
 APP_NAME = "APRJ"
-APP_ROOT = (
-    Path(sys.executable).resolve().parent
-    if getattr(sys, "frozen", False)
-    else Path(__file__).resolve().parent
-)
-
-# Struktur Direktori Portabel
+APP_ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
 APP_LOGS = APP_ROOT / "logs"
 APP_ERROR_LOG = APP_LOGS / "application_errors.log"
+DATA_ROOT = APP_ROOT / "data"
+SURVEY_DB_PATH = DATA_ROOT / "survey.sqlite3"
 DATASET_ROOT = APP_ROOT / "dataset"
 FEEDBACK_ROOT = DATASET_ROOT / "feedback"
 DOWNLOAD_ROOT = APP_ROOT / "downloads"
 CONFIG_ROOT = APP_ROOT / "config"
-
 SURVEY_AI_ROOT = APP_ROOT / "survey_ai"
 SURVEY_AI_DATASET = SURVEY_AI_ROOT / "dataset"
 SURVEY_AI_IMAGES = SURVEY_AI_DATASET / "images"
 SURVEY_AI_MODELS = SURVEY_AI_ROOT / "models"
 
-# Klasifikasi AI Multi-Task & Perkerasan
 CLASSES = ("baik", "rusak_ringan", "rusak_sedang", "rusak_berat")
 SURFACE_CLASSES = ("aspal", "beton", "tanah", "kerikil")
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
@@ -36,7 +26,7 @@ IMAGE_SIZE = 224
 
 
 def log_application_error(context, error_type, error, error_traceback):
-    """Mencatat error aplikasi secara terpusat ke dalam file log lokal."""
+    """Catat error tanpa membuat kegagalan logging menghentikan aplikasi."""
     try:
         APP_LOGS.mkdir(parents=True, exist_ok=True)
         logger = logging.getLogger(APP_NAME)
@@ -51,11 +41,13 @@ def log_application_error(context, error_type, error, error_traceback):
 
 
 def initialize_portable_dirs():
-    """Membuat seluruh direktori pendukung secara otomatis jika belum ada."""
+    """Buat direktori yang diperlukan tanpa menghapus data yang sudah ada."""
     for directory in (
-        APP_LOGS, DATASET_ROOT, FEEDBACK_ROOT, DOWNLOAD_ROOT, CONFIG_ROOT,
-        SURVEY_AI_IMAGES, SURVEY_AI_MODELS
+        APP_LOGS, DATA_ROOT, DATASET_ROOT, FEEDBACK_ROOT, DOWNLOAD_ROOT,
+        CONFIG_ROOT, SURVEY_AI_IMAGES, SURVEY_AI_MODELS,
     ):
         directory.mkdir(parents=True, exist_ok=True)
-    for surface_class in SURFACE_CLASSES:
-        (DATASET_ROOT / "surface_type" / surface_class).mkdir(parents=True, exist_ok=True)
+    for label in CLASSES:
+        (DATASET_ROOT / label).mkdir(parents=True, exist_ok=True)
+    for label in SURFACE_CLASSES:
+        (DATASET_ROOT / "surface_type" / label).mkdir(parents=True, exist_ok=True)
