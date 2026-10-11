@@ -949,13 +949,27 @@ class RoadSurveyApp:
         if not self.staged_training_records:
             return
         added = 0
+        updated = 0
         try:
+            # SHA-256 mencegah foto yang sama terhitung berulang saat Excel diimpor ulang.
+            index_by_digest = {
+                record.get("sha256"): index
+                for index, record in enumerate(self.training_records)
+                if record.get("sha256")
+            }
             for staged in self.staged_training_records:
                 source = Path(staged["source_path"])
                 digest = hashlib.sha256(source.read_bytes()).hexdigest()
                 destination = SURVEY_AI_IMAGES / f"{digest[:20]}_{source.name}"
                 if not destination.exists():
                     shutil.copy2(source, destination)
+                if digest in index_by_digest:
+                    existing = self.training_records[index_by_digest[digest]]
+                    existing["photo_name"] = staged["photo_name"]
+                    existing["labels"] = staged["labels"]
+                    existing["imported_at"] = datetime.now().isoformat()
+                    updated += 1
+                    continue
                 record = {
                     "photo_name": staged["photo_name"],
                     "image_path": str(destination.relative_to(APP_ROOT)),
@@ -964,17 +978,20 @@ class RoadSurveyApp:
                     "imported_at": datetime.now().isoformat(),
                 }
                 self.training_records.append(record)
+                index_by_digest[digest] = len(self.training_records) - 1
                 added += 1
             self.save_training_manifest()
         except Exception as e:
-            messagebox.showerror("Gagal Menyalin", str(e))
+            messagebox.showerror("Gagal Menyalin", str(e), parent=self.root)
             return
 
         self.staged_training_records = []
         self.confirm_import_button.configure(state="disabled")
         self.cancel_import_button.configure(state="disabled")
         self.refresh_training_dataset_view()
-        self.ai_training_status.set(f"Berhasil mengimpor {added} foto ke dataset AI.")
+        self.ai_training_status.set(
+            f"Impor selesai: {added} foto baru, {updated} label foto yang sudah ada diperbarui."
+        )
 
     def validate_training_dataset(self):
         available = sum(1 for r in self.training_records if (APP_ROOT / r.get("image_path", "")).is_file())
