@@ -39,31 +39,33 @@ if not exist ".venv\Scripts\python.exe" (
 set "PYTHON_EXE=%CD%\.venv\Scripts\python.exe"
 
 echo.
-echo [1/5] Memperbarui pip...
+echo [1/6] Memperbarui pip...
 "%PYTHON_EXE%" -m pip install --upgrade pip
 if errorlevel 1 goto :fail
 
 echo.
-echo [2/5] Memasang dependensi runtime dan build dari requirements-build.txt...
+echo [2/6] Memasang dependensi runtime dan build dari requirements-build.txt...
 echo File ini menyertakan requirements.txt dan PyInstaller agar build_portable.bat dapat digunakan.
 "%PYTHON_EXE%" -m pip install -r requirements-build.txt
 if errorlevel 1 goto :fail
 
 echo.
-echo [3/5] Memverifikasi dependensi utama...
+echo [3/6] Memverifikasi dependensi utama...
 "%PYTHON_EXE%" -c "import torch; import PIL; import openpyxl; import piexif; import psycopg2; import PyInstaller; print('PyTorch:',torch.__version__); print('CUDA tersedia:',torch.cuda.is_available()); print('Pillow:',PIL.__version__); print('openpyxl:',openpyxl.__version__); print('piexif:',piexif.__version__ if hasattr(piexif,'__version__') else 'tersedia'); print('psycopg2:',psycopg2.__version__); print('PyInstaller:',PyInstaller.__version__)"
 if errorlevel 1 goto :fail
 
 echo.
-echo [4/5] Memeriksa sintaks seluruh modul Python...
-"%PYTHON_EXE%" -m compileall -q aprj_main.py aprj_ui.py aprj_core.py aprj_database.py aprj_ai_model.py aprj_pkrms.py aprj_training_engine.py aprj_geospasial.py aprj_metadata.py aprj_map_matching.py tests
+echo [4/6] Memeriksa sintaks seluruh modul Python...
+"%PYTHON_EXE%" -m compileall -q aprj_main.py aprj_ui.py aprj_core.py aprj_database.py aprj_ai_model.py aprj_pkrms.py aprj_training_engine.py aprj_geospasial.py aprj_metadata.py aprj_map_matching.py aprj_exif_fallback.py tests
 if errorlevel 1 goto :fail
 
 echo.
-echo [5/5] Menjalankan tes regresi...
+echo [5/6] Menjalankan tes regresi...
 "%PYTHON_EXE%" -m unittest discover -s tests -v
 if errorlevel 1 goto :fail
 
+echo.
+echo [6/6] Menguji forward-pass model AI...
 "%PYTHON_EXE%" -c "import torch; from aprj_ai_model import SurveyMultiTaskNet; m=SurveyMultiTaskNet({'uji':['kelas_a','kelas_b']}); y=m(torch.zeros(1,3,224,224)); assert 'classes' in y and 'widths' in y; print('Tes forward model: BERHASIL')"
 if errorlevel 1 goto :fail
 
