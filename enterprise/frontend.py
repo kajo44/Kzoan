@@ -61,6 +61,7 @@ class RoadSurveyAppFrontend:
         self.current_selections = {key: "" for key in self.options_config.keys()}
 
         self.build_main_ui()
+        self.root.protocol("WM_DELETE_WINDOW", self.tutup_aplikasi)
 
     def build_main_ui(self):
         self.notebook = ttk.Notebook(self.root)
@@ -532,6 +533,31 @@ class RoadSurveyAppFrontend:
             messagebox.showinfo("Sukses", f"File berhasil disimpan di:\n{path}")
         except Exception as e:
             messagebox.showerror("Error", str(e))
+
+    def tutup_aplikasi(self):
+        """Simpan otomatis formulir aktif sebelum aplikasi ditutup."""
+        try:
+            if self.photo_list and 0 <= self.current_photo_idx < len(self.photo_list):
+                relative_path = self.photo_list[self.current_photo_idx]
+                full_path = os.path.abspath(os.path.join(self.photo_folder, relative_path))
+                photo_key = os.path.normcase(full_path)
+                data = {
+                    "photo_path": full_path,
+                    "folder": self.photo_folder,
+                    "lebar_bahu_kiri": self.var_lebar_bahu_kiri.get(),
+                    "lebar_drainase_kiri": self.var_lebar_drainase_kiri.get(),
+                    "lebar_bahu_kanan": self.var_lebar_bahu_kanan.get(),
+                    "lebar_drainase_kanan": self.var_lebar_drainase_kanan.get(),
+                    "lebar_perkerasan": self.var_lebar_perkerasan.get(),
+                }
+                data.update(self.current_selections)
+                self.survey_store.save(photo_key, data)
+                self.survey_data[photo_key] = data
+        except Exception as exc:
+            core.log_application_error("Simpan otomatis saat keluar", type(exc), exc, exc.__traceback__)
+            messagebox.showerror("Gagal menyimpan", f"Data aktif gagal disimpan.\\n{exc}")
+            return
+        self.root.destroy()
 
     def sync_postgres(self):
         manager = database.DatabaseManager(host=self.db_host.get())
