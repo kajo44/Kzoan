@@ -833,8 +833,14 @@ class RoadSurveyApp:
             destination = self.map_matching_output_var.get().strip()
         if not destination:
             return
-        if Path(destination).resolve() == Path(self.map_matching_engine.last_root).resolve():
-            messagebox.showwarning("Salin Foto", "Folder output tidak boleh sama dengan folder sumber.", parent=self.root)
+        source_root = Path(self.map_matching_engine.last_root).resolve()
+        output_root = Path(destination).resolve()
+        if output_root == source_root or source_root in output_root.parents:
+            messagebox.showwarning(
+                "Salin Foto",
+                "Pilih folder output di luar folder root sumber agar hasil salinan tidak ikut terbaca sebagai foto input pada proses berikutnya.",
+                parent=self.root,
+            )
             return
         try:
             copied, errors = self.map_matching_engine.copy_matched_photos(
