@@ -24,6 +24,7 @@ import aprj_database as database
 import aprj_pkrms as pkrms_utils
 import aprj_training_engine as training_engine
 from aprj_geospasial import GeospatialEngine
+from aprj_metadata import PhotoMetadataTab
 from aprj_core import (
     APP_NAME, APP_ROOT, APP_LOGS, APP_ERROR_LOG, SURVEY_AI_ROOT,
     SURVEY_AI_DATASET, SURVEY_AI_IMAGES, SURVEY_AI_MANIFEST, SURVEY_AI_RUNS,
@@ -367,11 +368,13 @@ class RoadSurveyApp:
         self.ai_tab = ttk.Frame(self.notebook, padding=12)
         self.pkrms_tab = ttk.Frame(self.notebook, padding=12)
         self.online_tab = ttk.Frame(self.notebook, padding=12)
+        self.metadata_tab = PhotoMetadataTab(self.notebook)
         
         self.notebook.add(self.survey_tab, text="Survei Jalan")
         self.notebook.add(self.ai_tab, text="Rekayasa AI")
         self.notebook.add(self.pkrms_tab, text="PKRMS")
         self.notebook.add(self.online_tab, text="Integrasi Online")
+        self.notebook.add(self.metadata_tab, text="Metadata Foto")
         self.build_pkrms_tab()
         self.build_online_tab()
 
