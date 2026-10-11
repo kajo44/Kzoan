@@ -281,17 +281,19 @@ class RoadSurveyApp:
         """Bersihkan cache dan file sementara, tanpa menyentuh data/model survei."""
         if not messagebox.askyesno(
             "Clean APRJ",
-            "Bersihkan cache AI dan file sementara?\n\n"
-            "Database penilaian, foto sumber, dataset, model AI, dan hasil training tidak dihapus.",
+            "Bersihkan cache AI, cache geospasial, dan file sementara?\n\n"
+            "Database penilaian/geospasial, foto sumber, dataset, model AI, hasil pemetaan, dan hasil training tidak dihapus.",
             parent=self.root,
         ):
             return
         removed_files = 0
         removed_dirs = 0
         errors = []
-        cache_root = SURVEY_AI_CACHE
+        cache_roots = (SURVEY_AI_CACHE, self.geospatial_engine.cache_root)
         try:
-            if cache_root.exists():
+            for cache_root in cache_roots:
+                if not cache_root.exists():
+                    continue
                 for item in cache_root.iterdir():
                     try:
                         if item.is_dir() and not item.is_symlink():
