@@ -83,6 +83,7 @@ python -m PyInstaller --noconfirm --clean --windowed --onedir ^
   --hidden-import aprj_geospasial ^
   --hidden-import aprj_metadata ^
   --hidden-import aprj_map_matching ^
+  --hidden-import aprj_exif_fallback ^
   --hidden-import psycopg2 ^
   --hidden-import psycopg2._psycopg ^
   aprj_main.py
