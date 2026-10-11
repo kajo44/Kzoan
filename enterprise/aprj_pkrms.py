@@ -52,7 +52,7 @@ def normalize_condition(value):
         "tidak baik", "kurang baik", "belum baik", "tidak layak",
         "belum layak", "tidak aman", "belum aman",
     )
-    if any(term in text for term in negative_or_ambiguous) or re.search(r"\\b(?:tidak|belum|bukan)\\b", text):
+    if any(term in text for term in negative_or_ambiguous) or re.search(r"\b(?:tidak|belum|bukan)\b", text):
         return None
 
     # Urutkan kondisi dari paling berat agar kata "rusak" umum tidak menimpa kelas spesifik.
