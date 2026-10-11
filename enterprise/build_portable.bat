@@ -42,7 +42,7 @@ if errorlevel 1 goto :fail
 
 echo.
 echo [3/3] Memeriksa sintaks aplikasi...
-python -m py_compile main.py APRJ_v2.py core.py frontend.py database.py ai_model.py pkrms_utils.py
+python -m py_compile main.py APRJ_v2.py core.py database.py ai_model.py pkrms_utils.py
 if errorlevel 1 goto :fail
 
 echo.
