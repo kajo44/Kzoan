@@ -29,7 +29,7 @@ def _as_float(value):
 
 def _as_text(value):
     if isinstance(value, bytes):
-        return value.decode("ascii", errors="replace").strip("\\x00 ")
+        return value.decode("ascii", errors="replace").strip("\x00 ")
     return str(value or "").strip()
 
 
