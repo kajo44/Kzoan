@@ -8,7 +8,7 @@ APRJ Next menggabungkan empat area kerja:
 
 - **Survei Jalan** — memuat foto, mengisi/meninjau atribut survei, menyimpan catatan lokal, dan mengekspor Excel.
 - **Rekayasa AI** — mengimpor dataset berlabel, melatih model lokal, memeriksa checkpoint, dan menjalankan prediksi untuk ditinjau petugas.
-- **PKRMS** — alat bantu audit/ekspor serta panel **Modul Geospasial Jalan** untuk indeks GPS, pencocokan foto ke STA, dan ekspor hasil.
+- **Map Matching** — pencocokan foto ber-GPS ke ruas/STA, parameter jarak-arah-waktu-kecepatan, ekspor KML/CSV, KMZ titik foto, dan penyalinan foto terpilih.
 - **Integrasi Online** — fitur terkait Google Colab dan sinkronisasi PostgreSQL jika server serta kredensial tersedia.
 - **Metadata Foto** — salin EXIF antarfolder, ekspor metadata EXIF/GPS ke Excel/CSV, dan tulis koordinat GPS dari Excel/CSV ke JPG/JPEG.
 
@@ -70,17 +70,25 @@ Manifest baru menggunakan `source_path` untuk foto sumber. Record lama yang masi
 
 Model yang ada adalah CNN yang dilatih dari awal, bukan model pretrained. Kualitasnya bergantung pada mutu dan representativitas label. Estimasi lebar dari foto tidak boleh dianggap ukuran resmi tanpa kalibrasi dan verifikasi lapangan.
 
-### C. PKRMS dan Modul Geospasial Jalan
+### C. Map Matching
 
-1. Buka tab **PKRMS**.
-2. Untuk pemetaan, pilih folder foto dan file ruas jalan berformat **KML** atau **GeoJSON** dengan geometri LineString/MultiLineString.
-3. Atur interval STA dalam meter dan radius pencarian foto.
-4. Jalankan pemrosesan; tunggu indeks GPS dan pencocokan selesai. Proses indeks dapat memerlukan waktu tergantung jumlah foto dan perangkat.
-5. Tinjau status kandidat, jarak, nama ruas, dan STA. Status kandidat saat ini harus diperlakukan sebagai **perlu verifikasi**.
-6. Buka foto kandidat ke Survei Jalan atau pemeriksaan AI untuk validasi visual.
-7. Ekspor CSV atau gunakan ekspor PKRMS yang menyertakan sheet Pemetaan STA jika hasil tersedia.
+1. Buka tab **Map Matching**.
+2. Pilih folder root foto. Pemindaian mencakup subfolder secara rekursif; foto sumber tidak dipindah atau diubah.
+3. Pilih geometri ruas berformat KML, KMZ, GeoJSON, atau JSON yang berisi garis `LineString`/`MultiLineString`. File KMZ foto yang hanya berisi `Point` bukan geometri ruas yang dapat dipakai untuk mencocokkan STA.
+4. Atur interval STA (default 100 m), radius pencocokan, batas kecepatan (default 40 km/jam), toleransi arah kamera, dan rentang waktu untuk pemeriksaan kecepatan antar-foto.
+5. Jalankan batch. ExifTool membaca koordinat GPS, arah kamera, waktu foto, dan metadata dasar dalam batch. Indeks geometri mempersempit kandidat sebelum perhitungan jarak.
+6. Sistem memproyeksikan posisi foto ke segmen garis terdekat dalam radius, memperhitungkan arah kamera jika tersedia, menghitung kecepatan antar-foto berurutan dalam folder yang sama bila selisih waktu masih dalam jendela yang dipilih, lalu memilih satu foto terbaik per ruas dan bucket STA.
+7. Ekspor **CSV Lengkap** untuk mencakup foto yang cocok, tidak cocok, tanpa GPS, atau tidak terpilih karena kandidat STA lain lebih baik. Kolom mencakup nama/path foto, waktu, GPS, heading, ruas, STA, jarak, selisih arah, kecepatan, dan status.
+8. Ekspor **STA KML** untuk meninjau titik STA hasil pada perangkat GIS. Tombol **Buat KMZ Foto GPS** membuat arsip KMZ berisi placemark titik foto, thumbnail/link ke foto, file foto, dan log.
+9. Gunakan **Salin Foto Terpilih** untuk menyalin (bukan memindahkan) foto ke folder output, disusun per ruas atau per ruas dan interval STA.
 
-Pemetaan saat ini menggunakan jarak ke titik STA hasil interpolasi dan radius pencarian. Sistem belum melakukan pencocokan arah/continuity secara komprehensif, belum mendukung KMZ langsung, dan belum menjamin foto benar-benar menggambarkan ruas yang dipilih. Periksa proyeksi/koordinat sumber dan hasil pada peta sebelum digunakan.
+**Batas interpretasi dan akurasi:**
+
+- Arah ruas ditentukan oleh urutan vertex pada geometri: arah kamera dibandingkan dengan arah lokal dari vertex awal menuju vertex akhir. Bila garis digitasi terbalik terhadap arah perjalanan, hasil dapat ditolak oleh filter heading. Periksa arah digitasi atau nonaktifkan filter arah untuk pengujian.
+- Foto tanpa GPS tidak dapat dicocokkan secara spasial. Foto tanpa heading EXIF masih dapat dipertimbangkan, tetapi arah kamera tidak dapat diverifikasi.
+- Batas kecepatan dihitung dari jarak GPS dan selisih waktu antar-foto berurutan dalam folder sumber yang sama, hanya jika kedua timestamp ada dan jedanya tidak melebihi jendela waktu. GPS yang berisik atau timestamp salah dapat menghasilkan penolakan yang keliru.
+- Algoritme memilih kandidat terdekat yang memenuhi filter dan memilih satu foto terbaik per bucket STA. Ini bukan Hidden Markov Model penuh, dan belum membuktikan secara otomatis bahwa isi visual foto benar-benar menunjukkan ruas tersebut.
+- Semua status hasil adalah kandidat untuk verifikasi manusia. Uji dengan ruas dan foto yang sudah diketahui benar sebelum dipakai sebagai data resmi atau diproses pada skala jutaan foto.
 
 ### E. Metadata Foto
 
