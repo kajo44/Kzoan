@@ -27,7 +27,7 @@ GRID_DEG = 0.002
 
 def _safe_name(value):
     value = re.sub(r'[<>:"/\\\\|?*\\x00-\\x1f]+', "_", str(value or "").strip())
-    value = re.sub(r"\\s+", " ", value).strip(" .")
+    value = re.sub(r"\s+", " ", value).strip(" .")
     return (value or "Tanpa_Nama")[:100]
 
 
@@ -381,8 +381,8 @@ class MapMatchingEngine:
             pm = ET.SubElement(doc, f"{{{ns}}}Placemark")
             ET.SubElement(pm, f"{{{ns}}}name").text = f'{row.get("road_name","")} STA {row.get("sta_m")} m'
             desc = ET.SubElement(pm, f"{{{ns}}}description")
-            desc.text = (f'Foto: {row.get("photo_name","")}\\nJarak: {row.get("distance_m",0):.1f} m'
-                         f'\\nWaktu: {row.get("taken_at_text","")}\\nStatus: {row.get("match_status","")}')
+            desc.text = (f'Foto: {row.get("photo_name","")}\nJarak: {row.get("distance_m",0):.1f} m'
+                         f'\nWaktu: {row.get("taken_at_text","")}\nStatus: {row.get("match_status","")}')
             ext = ET.SubElement(pm, f"{{{ns}}}ExtendedData")
             for key in ("road_id", "road_name", "sta_m", "sta_km", "photo_name", "photo_path",
                         "distance_m", "camera_heading_deg", "heading_difference_deg", "taken_at_text", "match_status"):
@@ -464,6 +464,6 @@ class MapMatchingEngine:
             archive.writestr("doc.kml", ET.tostring(root, encoding="utf-8", xml_declaration=True))
         log_path = folder / "map_matching_kmz_log.txt"
         with open(log_path, "a", encoding="utf-8") as handle:
-            handle.write(f"\\n=== Eksekusi {datetime.now().isoformat(timespec='seconds')} ===\\n")
-            handle.write("\\n".join(log_lines) + "\\n")
+            handle.write(f"\n=== Eksekusi {datetime.now().isoformat(timespec='seconds')} ===\n")
+            handle.write("\n".join(log_lines) + "\n")
         return str(output_file), len([line for line in log_lines if line.startswith("[OK]")]), str(log_path)
