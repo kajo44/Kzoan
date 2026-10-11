@@ -30,8 +30,10 @@ class RoadSurveyAppFrontend:
         self.photo_folder = ""
         self.photo_list = []
         self.current_photo_idx = -1
-        self.survey_data = {}
+        self.survey_store = database.SQLiteSurveyStore(core.SURVEY_DB_PATH)
+        self.survey_data = self.survey_store.load_all()
         self.ai_latest_prediction = {}
+        self.ai_inference = ai_model.ModelInference()
 
         self.original_image = None
         self.zoom_scale = 1.0
@@ -86,6 +88,8 @@ class RoadSurveyAppFrontend:
 
         tk.Button(top_frame, text="PILIH", bg="#3498db", fg="white", font=("Arial", 9, "bold"), command=self.pilih_folder).pack(side=tk.LEFT, padx=3, pady=5)
         tk.Button(top_frame, text="MUAT", bg="#2ecc71", fg="white", font=("Arial", 9, "bold"), command=self.muat_foto).pack(side=tk.LEFT, padx=3, pady=5)
+        tk.Button(top_frame, text="PREDIKSI AI", bg="#8e44ad", fg="white", font=("Arial", 9, "bold"), command=self.jalankan_prediksi_ai_single).pack(side=tk.LEFT, padx=3, pady=5)
+        tk.Button(top_frame, text="TERAPKAN AI", bg="#6c3483", fg="white", font=("Arial", 9, "bold"), command=self.terapkan_hasil_ai).pack(side=tk.LEFT, padx=3, pady=5)
         tk.Button(top_frame, text="PREVIEW", bg="#f1c40f", fg="black", font=("Arial", 9, "bold"), command=self.tampilkan_preview_popup).pack(side=tk.RIGHT, padx=5, pady=5)
         tk.Button(top_frame, text="EKSPORT", bg="#e67e22", fg="white", font=("Arial", 9, "bold"), command=self.eksport_ke_excel).pack(side=tk.RIGHT, padx=5, pady=5)
 
@@ -274,34 +278,28 @@ class RoadSurveyAppFrontend:
 
     # --- Metode Prediksi AI Otomatis ---
     def jalankan_prediksi_ai_single(self):
-        """Menjalankan inferensi model AI pada foto aktif saat ini."""
+        """Jalankan inferensi hanya jika checkpoint model terlatih tersedia."""
         if self.original_image is None:
-            messagebox.showwarning("Perhatian", "Belum ada foto yang dimuat di canvas!")
+            messagebox.showwarning("Perhatian", "Belum ada foto yang dimuat.")
             return
-
+        if not self.ai_inference.available:
+            messagebox.showwarning("Model AI belum tersedia", f"{self.ai_inference.error}\n\nLetakkan checkpoint terlatih di:\n{self.ai_inference.checkpoint}")
+            self.lbl_ai_prediction_status.configure(text="Status AI: Model terlatih belum tersedia")
+            return
         try:
-            tensor_img = ai_model.image_to_tensor(self.original_image)
-            if tensor_img is None:
-                self.lbl_ai_prediction_status.configure(text="Status AI: Gagal memproses tensor gambar.")
-                return
-
-            # Hasil inferensi / simulasi cerdas
-            prediksi_kondisi = "RUSAK RINGAN"
-            prediksi_tipe = "Aspal"
-            
-            self.ai_latest_prediction = {
-                "perkerasan_kondisi": prediksi_kondisi,
-                "perkerasan_tipe": prediksi_tipe
-            }
-            
-            self.lbl_ai_prediction_status.configure(
-                text=f"AI: {prediksi_tipe} - {prediksi_kondisi} (Akurat)"
-            )
-            messagebox.showinfo("Prediksi AI Selesai", f"Model AI mendeteksi:\n- Tipe: {prediksi_tipe}\n- Kondisi: {prediksi_kondisi}\n\nKlik 'Terapkan Hasil AI' untuk menggunakannya.")
-            
-        except Exception as e:
-            core.log_application_error("Prediksi AI Single", type(e), e, e.__traceback__)
-            messagebox.showerror("Error AI", f"Terjadi kesalahan saat memproses AI: {str(e)}")
+            prediction = self.ai_inference.predict(self.original_image)
+            condition_map = {"baik": "BAIK", "rusak_ringan": "RUSAK RINGAN", "rusak_sedang": "SEDANG", "rusak_berat": "RUSAK BERAT"}
+            surface_map = {"aspal": "Aspal", "beton": "Beton", "tanah": "Tanah", "kerikil": "Kerikil"}
+            condition = condition_map[prediction["condition"]["label"]]
+            surface = surface_map[prediction["surface_type"]["label"]]
+            cc = prediction["condition"]["confidence"]
+            sc = prediction["surface_type"]["confidence"]
+            self.ai_latest_prediction = {"perkerasan_kondisi": condition, "perkerasan_tipe": surface}
+            self.lbl_ai_prediction_status.configure(text=f"AI: {surface} ({sc:.0%}) - {condition} ({cc:.0%})")
+            messagebox.showinfo("Prediksi AI", f"Tipe: {surface} (confidence {sc:.1%})\nKondisi: {condition} (confidence {cc:.1%})\n\nConfidence bukan jaminan akurasi. Verifikasi hasil dengan survei manusia.")
+        except Exception as exc:
+            core.log_application_error("Prediksi AI", type(exc), exc, exc.__traceback__)
+            messagebox.showerror("Prediksi AI gagal", str(exc))
 
     def terapkan_hasil_ai(self):
         """Menerapkan hasil prediksi AI ke form penilaian aktif."""
@@ -353,35 +351,46 @@ class RoadSurveyAppFrontend:
 
     def muat_foto(self):
         folder = self.ent_path.get().strip()
-        if not folder or not os.path.exists(folder):
-            messagebox.showerror("Error", "Path folder foto tidak valid!")
+        if not folder or not os.path.isdir(folder):
+            messagebox.showerror("Error", "Path folder foto tidak valid.")
             return
-        self.photo_folder = folder
-        valid_exts = tuple(core.IMAGE_EXTENSIONS)
-        self.photo_list = [f for f in os.listdir(folder) if f.lower().endswith(valid_exts)]
-        self.photo_list.sort()
+        self.photo_folder = os.path.abspath(folder)
+        self.photo_list = []
+        for root, dirs, files in os.walk(self.photo_folder):
+            dirs.sort()
+            for name in files:
+                if os.path.splitext(name)[1].lower() in core.IMAGE_EXTENSIONS:
+                    self.photo_list.append(os.path.relpath(os.path.join(root, name), self.photo_folder))
+        self.photo_list.sort(key=lambda path: path.casefold())
         if not self.photo_list:
-            messagebox.showwarning("Informasi", "Tidak ditemukan file foto gambar di folder tersebut.")
+            messagebox.showwarning("Informasi", "Tidak ditemukan gambar pada folder maupun subfolder.")
             return
         self.current_photo_idx = 0
         self.tampilkan_foto_dan_load_data()
 
     def tampilkan_foto_dan_load_data(self):
-        if not self.photo_list or self.current_photo_idx < 0:
+        if not self.photo_list or not (0 <= self.current_photo_idx < len(self.photo_list)):
             return
-        filename = self.photo_list[self.current_photo_idx]
-        full_path = os.path.join(self.photo_folder, filename)
+        relative_path = self.photo_list[self.current_photo_idx]
+        full_path = os.path.abspath(os.path.join(self.photo_folder, relative_path))
+        photo_key = os.path.normcase(full_path)
         try:
-            self.original_image = Image.open(full_path)
+            with Image.open(full_path) as image:
+                self.original_image = image.convert("RGB").copy()
             self.zoom_fit()
-        except Exception as e:
-            core.log_application_error("Muat Foto Canvas", type(e), e, e.__traceback__)
+        except Exception as exc:
+            core.log_application_error("Muat Foto Canvas", type(exc), exc, exc.__traceback__)
+            messagebox.showerror("Gagal membuka foto", f"{relative_path}\n{exc}")
             return
-        self.lbl_photo_info.configure(text=f"Foto: {self.current_photo_idx + 1} / {len(self.photo_list)} | {filename}")
-        self.lbl_ai_prediction_status.configure(text="Status AI: Belum diprediksi")
+        self.lbl_photo_info.configure(text=f"Foto: {self.current_photo_idx + 1} / {len(self.photo_list)} | {relative_path}")
+        self.lbl_ai_prediction_status.configure(text="Status AI: Siap")
         self.ai_latest_prediction = {}
-        if filename in self.survey_data:
-            self.load_saved_fields(self.survey_data[filename])
+        data = self.survey_data.get(photo_key)
+        if data is None:
+            data = self.survey_data.get(os.path.basename(relative_path))
+        self.reset_penilaian()
+        if data:
+            self.load_saved_fields(data)
 
     def render_canvas_image(self):
         if self.original_image is None:
@@ -445,8 +454,11 @@ class RoadSurveyAppFrontend:
     def simpan_dan_selanjutnya(self):
         if not self.photo_list or self.current_photo_idx < 0:
             return
-        filename = self.photo_list[self.current_photo_idx]
+        relative_path = self.photo_list[self.current_photo_idx]
+        full_path = os.path.abspath(os.path.join(self.photo_folder, relative_path))
+        photo_key = os.path.normcase(full_path)
         current_data = {
+            "photo_path": full_path,
             "folder": self.photo_folder,
             "lebar_bahu_kiri": self.var_lebar_bahu_kiri.get(),
             "lebar_drainase_kiri": self.var_lebar_drainase_kiri.get(),
@@ -455,7 +467,13 @@ class RoadSurveyAppFrontend:
             "lebar_perkerasan": self.var_lebar_perkerasan.get(),
         }
         current_data.update(self.current_selections)
-        self.survey_data[filename] = current_data
+        self.survey_data[photo_key] = current_data
+        try:
+            self.survey_store.save(photo_key, current_data)
+        except Exception as exc:
+            core.log_application_error("Simpan survei SQLite", type(exc), exc, exc.__traceback__)
+            messagebox.showerror("Gagal menyimpan", f"Data belum tersimpan permanen.\n{exc}")
+            return
         if self.current_photo_idx < len(self.photo_list) - 1:
             self.current_photo_idx += 1
             self.tampilkan_foto_dan_load_data()
@@ -494,7 +512,7 @@ class RoadSurveyAppFrontend:
         tree.heading("k_perkerasan", text="Kondisi")
         tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         for fn, d in self.survey_data.items():
-            tree.insert("", tk.END, values=(fn, d.get("lebar_perkerasan", "-"), d.get("perkerasan_tipe", "-"), d.get("perkerasan_kondisi", "-")))
+            tree.insert("", tk.END, values=(os.path.basename(d.get("photo_path", fn)), d.get("lebar_perkerasan", "-"), d.get("perkerasan_tipe", "-"), d.get("perkerasan_kondisi", "-")))
 
     def eksport_ke_excel(self):
         if not self.survey_data:
@@ -508,8 +526,9 @@ class RoadSurveyAppFrontend:
             ws = wb.active
             ws.title = "Hasil Survei Jalan"
             ws.append(["Nama File Foto", "Lebar Perkerasan", "Tipe Perkerasan", "Kondisi Perkerasan"])
+            ws.append(["Nama File Foto", "Path Foto", "Lebar Perkerasan", "Tipe Perkerasan", "Kondisi Perkerasan"])
             for fn, d in self.survey_data.items():
-                ws.append([fn, d.get("lebar_perkerasan"), d.get("perkerasan_tipe"), d.get("perkerasan_kondisi")])
+                ws.append([os.path.basename(d.get("photo_path", fn)), d.get("photo_path", ""), d.get("lebar_perkerasan"), d.get("perkerasan_tipe"), d.get("perkerasan_kondisi")])
             wb.save(path)
             messagebox.showinfo("Sukses", f"File berhasil disimpan di:\n{path}")
         except Exception as e:
@@ -519,8 +538,11 @@ class RoadSurveyAppFrontend:
         manager = database.DatabaseManager(host=self.db_host.get())
         success, msg = manager.test_connection()
         if success:
-            _, sync_msg = manager.sync_to_postgres(self.survey_data)
-            messagebox.showinfo("PostgreSQL", sync_msg)
+            sync_success, sync_msg = manager.sync_to_postgres(self.survey_data)
+            if sync_success:
+                messagebox.showinfo("PostgreSQL", sync_msg)
+            else:
+                messagebox.showerror("Sinkronisasi Gagal", sync_msg)
         else:
             messagebox.showerror("Koneksi Gagal", msg)
 
