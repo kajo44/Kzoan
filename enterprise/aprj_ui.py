@@ -1467,31 +1467,40 @@ else map.setView([-0.5, 101.5], 7);
                         "geometry": {"type": "LineString", "coordinates": [[lon, lat] for lon, lat in coords]},
                         "properties": {"kind": "road", "road_id": road_id, "road_name": road_name},
                     })
-            plotted = 0
+            plotted_photos = 0
+            plotted_sta = 0
             for row in engine.last_results:
-                lat, lon = row.get("sta_latitude"), row.get("sta_longitude")
-                if lat is None or lon is None:
-                    lat, lon = row.get("latitude"), row.get("longitude")
-                if lat is None or lon is None:
-                    continue
-                properties = {
-                    "kind": "photo/STA", "photo": row.get("photo_name", ""),
+                common_properties = {
+                    "photo": row.get("photo_name", ""),
                     "road": row.get("road_name", ""), "road_id": row.get("road_id", ""),
                     "STA_m": row.get("sta_m", ""), "jarak_m": row.get("distance_m", ""),
                     "arah_selisih_derajat": row.get("heading_difference_deg", ""),
                     "waktu": row.get("taken_at_text", ""), "status": row.get("match_status", ""),
                     "foto_sumber": row.get("photo_path", ""),
                 }
-                features.append({
-                    "type": "Feature",
-                    "geometry": {"type": "Point", "coordinates": [float(lon), float(lat)]},
-                    "properties": properties,
-                })
-                plotted += 1
+                for key, value in row.items():
+                    if any(token in str(key).casefold() for token in ("kondisi", "condition", "skor", "score")):
+                        common_properties[str(key)] = value
+                photo_lat, photo_lon = row.get("latitude"), row.get("longitude")
+                if photo_lat is not None and photo_lon is not None:
+                    features.append({
+                        "type": "Feature",
+                        "geometry": {"type": "Point", "coordinates": [float(photo_lon), float(photo_lat)]},
+                        "properties": {"kind": "photo", **common_properties},
+                    })
+                    plotted_photos += 1
+                sta_lat, sta_lon = row.get("sta_latitude"), row.get("sta_longitude")
+                if sta_lat is not None and sta_lon is not None:
+                    features.append({
+                        "type": "Feature",
+                        "geometry": {"type": "Point", "coordinates": [float(sta_lon), float(sta_lat)]},
+                        "properties": {"kind": "sta", **common_properties},
+                    })
+                    plotted_sta += 1
             self._online_open_geojson(
                 {"type": "FeatureCollection", "features": features},
                 "APRJ - Hasil Map Matching",
-                f"Hasil aplikasi: {plotted} titik; {len(features) - plotted} fitur garis jalan.",
+                f"Hasil aplikasi: {plotted_photos} titik foto; {plotted_sta} titik STA; {sum(1 for f in features if f.get('properties', {}).get('kind') == 'road')} ruas jalan.",
             )
         except Exception as error:
             log_application_error("Visualisasi hasil aplikasi", type(error), error, error.__traceback__)
