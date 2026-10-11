@@ -1207,7 +1207,6 @@ class RoadSurveyApp:
 
         ttk.Button(training_frame, text="Buka Folder AI", command=self.open_ai_folder).grid(row=0, column=10, padx=5)
         ttk.Button(training_frame, text="Periksa Kesiapan Model", command=self.check_ai_inference_readiness).grid(row=1, column=0, columnspan=3, padx=5, pady=5, sticky="w")
-        ttk.Button(training_frame, text="Prediksi Foto Aktif", command=self.predict_current_photo).grid(row=1, column=3, padx=5, pady=5, sticky="w")
 
         ttk.Label(training_frame, textvariable=self.ai_training_status, wraplength=900).grid(row=2, column=0, columnspan=11, sticky="w", padx=5, pady=5)
         self.refresh_training_dataset_view()
@@ -1897,6 +1896,9 @@ class RoadSurveyApp:
                     self.load_saved_fields_into_gui(self.survey_data[prev_filename].copy())
         self._loading_survey_fields = False
         self.save_session()
+        if self.ai_mode_enabled:
+            # Prediksi foto baru setelah pemuatan UI selesai agar formulir tidak bertabrakan.
+            self.root.after_idle(self.predict_current_photo)
 
     def toggle_ai_mode(self):
         if self.ai_mode_enabled:
@@ -1906,7 +1908,11 @@ class RoadSurveyApp:
         else:
             self.ai_mode_enabled = True
             self.ai_mode_button.configure(text="MODE AI: ON", bg="#148f77")
-            self.ai_status.set("Mode AI aktif; inferensi belum terhubung")
+            self.ai_status.set("Mode AI aktif; memprediksi foto aktif")
+            if self.current_photo_idx >= 0 and self.photo_list and self.photo_folder:
+                self.root.after_idle(self.predict_current_photo)
+            else:
+                self.ai_status.set("Mode AI aktif; muat folder foto untuk memulai prediksi")
 
     def render_canvas_image(self):
         if self.original_image is None:
