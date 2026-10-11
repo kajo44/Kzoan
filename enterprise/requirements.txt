@@ -1,0 +1,6 @@
+Pillow>=10.0
+openpyxl>=3.1
+# Optional: install PyTorch for AI inference after obtaining a compatible trained checkpoint.
+# torch
+# Optional: install PostgreSQL driver for remote synchronization.
+# psycopg2-binary
