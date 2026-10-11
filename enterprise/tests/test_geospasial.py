@@ -7,6 +7,7 @@ import piexif
 from PIL import Image
 
 from aprj_geospasial import (
+    GeospatialEngine,
     GeospatialStore,
     _distance_m,
     _station_points,
