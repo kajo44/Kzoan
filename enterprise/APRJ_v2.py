@@ -269,9 +269,12 @@ class RoadSurveyApp:
         
         self.survey_tab = tk.Frame(self.notebook, bg="#eaf2f8")
         self.ai_tab = ttk.Frame(self.notebook, padding=12)
+        self.pkrms_tab = ttk.Frame(self.notebook, padding=12)
         
         self.notebook.add(self.survey_tab, text="Survei Jalan")
         self.notebook.add(self.ai_tab, text="Rekayasa AI")
+        self.notebook.add(self.pkrms_tab, text="PKRMS")
+        self.build_pkrms_tab()
 
         # Top Control Frame
         top_frame = tk.Frame(self.survey_tab, bg="#1f4e78", bd=1, relief=tk.RAISED)
@@ -462,6 +465,130 @@ class RoadSurveyApp:
         tk.Button(frame_buttons_right, text="SIMPAN & LANJUT", bg="#27ae60", fg="white", font=("Arial", 9, "bold"), command=self.simpan_dan_selanjutnya).pack(fill=tk.BOTH, expand=True)
 
         self.build_ai_tab()
+
+    def build_pkrms_tab(self):
+        """Antarmuka PKRMS: template, audit dataset, dan ekspor catatan survei."""
+        self.pkrms_tab.columnconfigure(0, weight=1)
+        ttk.Label(
+            self.pkrms_tab,
+            text="PKRMS — Pengelolaan Data Survei Jalan",
+            font=("Segoe UI", 15, "bold"),
+        ).grid(row=0, column=0, sticky="w", pady=(0, 4))
+        ttk.Label(
+            self.pkrms_tab,
+            text="Siapkan template, audit foto/dataset, dan ekspor catatan survei ke Excel. "
+                 "Data yang belum dinilai tidak diberi label kondisi secara otomatis.",
+            wraplength=1000,
+        ).grid(row=1, column=0, sticky="w", pady=(0, 12))
+        actions = ttk.LabelFrame(self.pkrms_tab, text="Operasi PKRMS")
+        actions.grid(row=2, column=0, sticky="new", pady=5)
+        ttk.Button(actions, text="Buat Template PKRMS Excel", command=self.pkrms_create_template).grid(row=0, column=0, padx=6, pady=8, sticky="w")
+        ttk.Button(actions, text="Ekspor Data Survei ke PKRMS", command=self.pkrms_export_report).grid(row=0, column=1, padx=6, pady=8, sticky="w")
+        ttk.Button(actions, text="Audit Folder Dataset", command=self.pkrms_audit_dataset).grid(row=0, column=2, padx=6, pady=8, sticky="w")
+        self.pkrms_status = tk.StringVar(value="Siap. Pilih operasi PKRMS yang diperlukan.")
+        ttk.Label(self.pkrms_tab, textvariable=self.pkrms_status, wraplength=1000, justify="left").grid(row=3, column=0, sticky="nw", pady=10)
+        ttk.Label(
+            self.pkrms_tab,
+            text="Catatan: template ini adalah struktur kerja dan bukan pengganti validasi terhadap format resmi PKRMS.",
+            wraplength=1000,
+        ).grid(row=4, column=0, sticky="w", pady=(8, 0))
+
+    def pkrms_create_template(self):
+        destination = filedialog.asksaveasfilename(
+            parent=self.root, title="Simpan Template PKRMS", defaultextension=".xlsx",
+            filetypes=[("Excel Workbook", "*.xlsx")], initialfile="template_pkrms.xlsx",
+        )
+        if not destination:
+            return
+        try:
+            workbook = openpyxl.Workbook()
+            sheet = workbook.active
+            sheet.title = "PKRMS_Survey"
+            columns = [
+                "province", "regency", "district", "road_code", "road_name",
+                "segment_id", "start_km", "end_km", "length_km", "survey_date",
+                "photo_name", "surface_type", "condition", "ai_condition",
+                "corrected_condition", "final_condition", "review_status",
+                "road_width_m", "width_measurement_status", "remarks",
+            ]
+            sheet.append(columns)
+            sheet.freeze_panes = "A2"
+            sheet.auto_filter.ref = "A1:T1"
+            for cell in sheet[1]:
+                cell.font = XlFont(bold=True, color="FFFFFF")
+                cell.fill = PatternFill("solid", fgColor="1F4E78")
+                cell.alignment = XlAlignment(wrap_text=True, vertical="center")
+            for idx, name in enumerate(columns, start=1):
+                sheet.column_dimensions[openpyxl.utils.get_column_letter(idx)].width = max(14, min(26, len(name) + 3))
+            workbook.save(destination)
+            self.pkrms_status.set(f"Template PKRMS berhasil dibuat: {destination}")
+            messagebox.showinfo("PKRMS", "Template Excel berhasil dibuat.", parent=self.root)
+        except Exception as error:
+            log_application_error("Membuat template PKRMS", type(error), error, error.__traceback__)
+            messagebox.showerror("PKRMS", f"Gagal membuat template:\n{error}", parent=self.root)
+
+    def pkrms_export_report(self):
+        destination = filedialog.asksaveasfilename(
+            parent=self.root, title="Ekspor Data Survei untuk PKRMS", defaultextension=".xlsx",
+            filetypes=[("Excel Workbook", "*.xlsx")], initialfile="data_survei_pkrms.xlsx",
+        )
+        if not destination:
+            return
+        try:
+            workbook = openpyxl.Workbook()
+            sheet = workbook.active
+            sheet.title = "PKRMS_Survey"
+            sheet.append(["photo_name", "photo_path", "survey_date", "surface_type", "condition", "review_status", "remarks"])
+            records = dict(self._stored_survey_records)
+            records.update(self.survey_data)
+            for photo_key, data in records.items():
+                data = data if isinstance(data, dict) else {}
+                sheet.append([
+                    data.get("filename", os.path.basename(str(photo_key))),
+                    data.get("folder", os.path.dirname(str(photo_key))),
+                    data.get("survey_date", ""),
+                    data.get("jenis_perkerasan", data.get("perkerasan", "")),
+                    data.get("kondisi", data.get("kondisi_jalan", "")),
+                    data.get("review_status", "Belum diverifikasi"),
+                    data.get("remarks", ""),
+                ])
+            sheet.freeze_panes = "A2"
+            sheet.auto_filter.ref = sheet.dimensions
+            for cell in sheet[1]:
+                cell.font = XlFont(bold=True, color="FFFFFF")
+                cell.fill = PatternFill("solid", fgColor="1F4E78")
+            for col in sheet.columns:
+                letter = col[0].column_letter
+                sheet.column_dimensions[letter].width = min(45, max(14, max(len(str(cell.value or "")) for cell in col) + 2))
+            workbook.save(destination)
+            self.pkrms_status.set(f"Ekspor selesai: {len(records)} catatan ditulis ke {destination}")
+            messagebox.showinfo("PKRMS", f"Ekspor selesai. Jumlah catatan: {len(records)}.", parent=self.root)
+        except Exception as error:
+            log_application_error("Ekspor data PKRMS", type(error), error, error.__traceback__)
+            messagebox.showerror("PKRMS", f"Gagal mengekspor data:\n{error}", parent=self.root)
+
+    def pkrms_audit_dataset(self):
+        try:
+            extensions = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff"}
+            image_count = sum(
+                1 for path in SURVEY_AI_IMAGES.rglob("*")
+                if path.is_file() and path.suffix.lower() in extensions
+            ) if SURVEY_AI_IMAGES.is_dir() else 0
+            manifest_count = len(self.training_records)
+            saved_count = len(self._stored_survey_records)
+            report = (
+                "Audit dataset selesai.\n\n"
+                f"Foto di dataset AI: {image_count}\n"
+                f"Rekaman label/manifest AI: {manifest_count}\n"
+                f"Catatan survei tersimpan: {saved_count}\n\n"
+                "Audit ini menghitung berkas dan rekaman yang ditemukan; belum memverifikasi "
+                "kebenaran label atau kesesuaian dengan skema resmi PKRMS."
+            )
+            self.pkrms_status.set(report)
+            messagebox.showinfo("Audit Dataset PKRMS", report, parent=self.root)
+        except Exception as error:
+            log_application_error("Audit dataset PKRMS", type(error), error, error.__traceback__)
+            messagebox.showerror("PKRMS", f"Audit gagal:\n{error}", parent=self.root)
 
     def load_training_manifest(self):
         if not SURVEY_AI_MANIFEST.exists():
