@@ -525,7 +525,6 @@ class RoadSurveyAppFrontend:
             wb = openpyxl.Workbook()
             ws = wb.active
             ws.title = "Hasil Survei Jalan"
-            ws.append(["Nama File Foto", "Lebar Perkerasan", "Tipe Perkerasan", "Kondisi Perkerasan"])
             ws.append(["Nama File Foto", "Path Foto", "Lebar Perkerasan", "Tipe Perkerasan", "Kondisi Perkerasan"])
             for fn, d in self.survey_data.items():
                 ws.append([os.path.basename(d.get("photo_path", fn)), d.get("photo_path", ""), d.get("lebar_perkerasan"), d.get("perkerasan_tipe"), d.get("perkerasan_kondisi")])
