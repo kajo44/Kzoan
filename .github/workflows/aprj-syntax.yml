@@ -1,0 +1,23 @@
+name: APRJ Python Syntax
+
+on:
+  push:
+    branches:
+      - crg_aprj
+    paths:
+      - "enterprise/**/*.py"
+      - ".github/workflows/aprj-syntax.yml"
+  workflow_dispatch:
+
+jobs:
+  syntax-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile Python source files
+        run: python -m compileall -q enterprise
