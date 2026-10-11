@@ -77,7 +77,7 @@ Model yang ada adalah CNN yang dilatih dari awal, bukan model pretrained. Kualit
 3. Pilih geometri ruas berformat KML, KMZ, GeoJSON, atau JSON yang berisi garis `LineString`/`MultiLineString`. File KMZ foto yang hanya berisi `Point` bukan geometri ruas yang dapat dipakai untuk mencocokkan STA.
 4. Atur interval STA (default 100 m), radius pencocokan, batas kecepatan (default 40 km/jam), toleransi arah kamera, dan rentang waktu untuk pemeriksaan kecepatan antar-foto.
 5. Jalankan batch. ExifTool membaca koordinat GPS, arah kamera, waktu foto, dan metadata dasar dalam batch. Indeks geometri mempersempit kandidat sebelum perhitungan jarak.
-6. Sistem memproyeksikan posisi foto ke segmen garis terdekat dalam radius, memperhitungkan arah kamera jika tersedia, menghitung kecepatan antar-foto berurutan dalam folder yang sama bila selisih waktu masih dalam jendela yang dipilih, lalu memilih satu foto terbaik per ruas dan bucket STA.
+6. Sistem membentuk hingga delapan kandidat ruas per foto. Bila opsi **HMM/Viterbi** aktif, sistem memilih urutan kandidat per folder sumber berdasarkan kecocokan GPS/heading dan konsistensi jarak antarproyeksi; bila nonaktif, baseline memilih kandidat lokal terbaik. Setelah itu dipilih satu foto terbaik per ruas dan bucket STA.
 7. Ekspor **CSV Lengkap** untuk mencakup foto yang cocok, tidak cocok, tanpa GPS, atau tidak terpilih karena kandidat STA lain lebih baik. Kolom mencakup nama/path foto, waktu, GPS, heading, ruas, STA, jarak, selisih arah, kecepatan, dan status.
 8. Ekspor **STA KML** untuk meninjau titik STA hasil pada perangkat GIS. Tombol **Buat KMZ Foto GPS** membuat arsip KMZ berisi placemark titik foto, thumbnail/link ke foto, file foto, dan log.
 9. Gunakan **Salin Foto Terpilih** untuk menyalin (bukan memindahkan) foto ke folder output, disusun per ruas atau per ruas dan interval STA.
@@ -87,7 +87,7 @@ Model yang ada adalah CNN yang dilatih dari awal, bukan model pretrained. Kualit
 - Arah ruas ditentukan oleh urutan vertex pada geometri: arah kamera dibandingkan dengan arah lokal dari vertex awal menuju vertex akhir. Bila garis digitasi terbalik terhadap arah perjalanan, hasil dapat ditolak oleh filter heading. Periksa arah digitasi atau nonaktifkan filter arah untuk pengujian.
 - Foto tanpa GPS tidak dapat dicocokkan secara spasial. Foto tanpa heading EXIF masih dapat dipertimbangkan, tetapi arah kamera tidak dapat diverifikasi.
 - Batas kecepatan dihitung dari jarak GPS dan selisih waktu antar-foto berurutan dalam folder sumber yang sama, hanya jika kedua timestamp ada dan jedanya tidak melebihi jendela waktu. GPS yang berisik atau timestamp salah dapat menghasilkan penolakan yang keliru.
-- Algoritme memilih kandidat terdekat yang memenuhi filter dan memilih satu foto terbaik per bucket STA. Ini bukan Hidden Markov Model penuh, dan belum membuktikan secara otomatis bahwa isi visual foto benar-benar menunjukkan ruas tersebut.
+- HMM/Viterbi memakai emisi jarak GPS dan heading serta transisi berdasarkan selisih antara perpindahan GPS dan jarak antartitik proyeksi. File geometri tanpa topologi jaringan tidak dapat memastikan konektivitas ruas; karena itu transisi ini pendekatan geometris, bukan perutean jaringan penuh. Baseline lokal tetap tersedia sebagai pembanding.
 - Semua status hasil adalah kandidat untuk verifikasi manusia. Uji dengan ruas dan foto yang sudah diketahui benar sebelum dipakai sebagai data resmi atau diproses pada skala jutaan foto.
 
 ### E. Metadata Foto
