@@ -19,6 +19,10 @@ from PIL import Image, ImageTk
 import openpyxl
 from openpyxl.styles import Alignment as XlAlignment, Border, Font as XlFont, PatternFill, Side
 
+import ai_model
+import database
+import pkrms_utils
+
 APP_NAME = "APRJ"
 APP_ROOT = (
     Path(sys.executable).resolve().parent
@@ -270,11 +274,14 @@ class RoadSurveyApp:
         self.survey_tab = tk.Frame(self.notebook, bg="#eaf2f8")
         self.ai_tab = ttk.Frame(self.notebook, padding=12)
         self.pkrms_tab = ttk.Frame(self.notebook, padding=12)
+        self.online_tab = ttk.Frame(self.notebook, padding=12)
         
         self.notebook.add(self.survey_tab, text="Survei Jalan")
         self.notebook.add(self.ai_tab, text="Rekayasa AI")
         self.notebook.add(self.pkrms_tab, text="PKRMS")
+        self.notebook.add(self.online_tab, text="Integrasi Online")
         self.build_pkrms_tab()
+        self.build_online_tab()
 
         # Top Control Frame
         top_frame = tk.Frame(self.survey_tab, bg="#1f4e78", bd=1, relief=tk.RAISED)
@@ -589,6 +596,155 @@ class RoadSurveyApp:
         except Exception as error:
             log_application_error("Audit dataset PKRMS", type(error), error, error.__traceback__)
             messagebox.showerror("PKRMS", f"Audit gagal:\n{error}", parent=self.root)
+
+    def build_online_tab(self):
+        """Integrasi cloud/Colab dan sinkronisasi PostgreSQL dari frontend lama."""
+        self.online_tab.columnconfigure(0, weight=1)
+        ttk.Label(
+            self.online_tab,
+            text="Integrasi Online, Google Colab, dan Database",
+            font=("Segoe UI", 15, "bold"),
+        ).grid(row=0, column=0, sticky="w", pady=(0, 4))
+        ttk.Label(
+            self.online_tab,
+            text="Fitur ini membutuhkan koneksi internet dan layanan eksternal. "
+                 "Aplikasi survei lokal tetap dapat digunakan secara offline.",
+            wraplength=1000,
+        ).grid(row=1, column=0, sticky="w", pady=(0, 12))
+
+        colab_frame = ttk.LabelFrame(self.online_tab, text="Google Colab")
+        colab_frame.grid(row=2, column=0, sticky="ew", pady=6)
+        ttk.Label(
+            colab_frame,
+            text="Buat skrip awal untuk menyiapkan Google Drive dan lingkungan Colab. "
+                 "Skrip ini bukan pipeline training AI lengkap.",
+            wraplength=950,
+        ).grid(row=0, column=0, columnspan=2, sticky="w", padx=8, pady=(8, 4))
+        ttk.Button(
+            colab_frame,
+            text="Ekspor Skrip Awal Colab (.py)",
+            command=self.export_colab_script,
+        ).grid(row=1, column=0, sticky="w", padx=8, pady=8)
+
+        db_frame = ttk.LabelFrame(self.online_tab, text="Sinkronisasi PostgreSQL")
+        db_frame.grid(row=3, column=0, sticky="ew", pady=6)
+        fields = [
+            ("Host", "db_host", "localhost"),
+            ("Port", "db_port", "5432"),
+            ("Database", "db_name", "aprj_db"),
+            ("User", "db_user", "postgres"),
+            ("Password", "db_password", ""),
+        ]
+        self.db_vars = {}
+        for index, (label, key, default) in enumerate(fields):
+            row, col = divmod(index, 4)
+            ttk.Label(db_frame, text=label).grid(row=row * 2, column=col, sticky="w", padx=8, pady=(8, 2))
+            variable = tk.StringVar(value=default)
+            self.db_vars[key] = variable
+            entry = ttk.Entry(
+                db_frame, textvariable=variable, width=22,
+                show="*" if key == "db_password" else "",
+            )
+            entry.grid(row=row * 2 + 1, column=col, sticky="ew", padx=8, pady=(0, 8))
+        for col in range(4):
+            db_frame.columnconfigure(col, weight=1)
+        controls = ttk.Frame(db_frame)
+        controls.grid(row=4, column=0, columnspan=4, sticky="w", padx=8, pady=(0, 8))
+        ttk.Button(controls, text="Uji Koneksi", command=self.test_postgres_connection).pack(side="left", padx=(0, 6))
+        ttk.Button(controls, text="Sinkronkan Data Survei", command=self.sync_postgres).pack(side="left")
+
+        self.online_status = tk.StringVar(value="Belum ada operasi online yang dijalankan.")
+        ttk.Label(
+            self.online_tab, textvariable=self.online_status,
+            wraplength=1000, justify="left",
+        ).grid(row=4, column=0, sticky="w", pady=8)
+
+    def _make_database_manager(self):
+        try:
+            port = int(self.db_vars["db_port"].get().strip())
+            if not 1 <= port <= 65535:
+                raise ValueError
+        except ValueError:
+            raise ValueError("Port PostgreSQL harus berupa angka antara 1 dan 65535.")
+        return database.DatabaseManager(
+            host=self.db_vars["db_host"].get().strip() or "localhost",
+            port=port,
+            database=self.db_vars["db_name"].get().strip() or "aprj_db",
+            user=self.db_vars["db_user"].get().strip() or "postgres",
+            password=self.db_vars["db_password"].get(),
+        )
+
+    def test_postgres_connection(self):
+        try:
+            manager = self._make_database_manager()
+            success, message = manager.test_connection()
+            self.online_status.set(message)
+            if success:
+                messagebox.showinfo("PostgreSQL", message, parent=self.root)
+            else:
+                messagebox.showerror("PostgreSQL", message, parent=self.root)
+        except Exception as error:
+            messagebox.showerror("Konfigurasi PostgreSQL", str(error), parent=self.root)
+
+    def sync_postgres(self):
+        """Sinkronkan catatan yang sudah tersimpan; tidak mengirim input yang belum disimpan."""
+        try:
+            records = dict(self._stored_survey_records)
+            records.update(self.survey_data)
+            normalized = {}
+            for key, value in records.items():
+                if not isinstance(value, dict):
+                    continue
+                data = value.copy()
+                source_path = str(key)
+                data.setdefault("filename", os.path.basename(source_path))
+                data.setdefault("folder", os.path.dirname(source_path) or self.photo_folder)
+                normalized[source_path] = data
+            if not normalized:
+                messagebox.showinfo(
+                    "PostgreSQL", "Belum ada catatan survei tersimpan untuk disinkronkan.",
+                    parent=self.root,
+                )
+                return
+            manager = self._make_database_manager()
+            success, message = manager.sync_to_postgres(normalized)
+            self.online_status.set(message)
+            if success:
+                messagebox.showinfo(
+                    "PostgreSQL", f"{message}\nJumlah catatan: {len(normalized)}",
+                    parent=self.root,
+                )
+            else:
+                messagebox.showerror("PostgreSQL", message, parent=self.root)
+        except Exception as error:
+            log_application_error("Sinkronisasi PostgreSQL", type(error), error, error.__traceback__)
+            messagebox.showerror("PostgreSQL", str(error), parent=self.root)
+
+    def export_colab_script(self):
+        destination = filedialog.asksaveasfilename(
+            parent=self.root,
+            title="Ekspor Skrip Awal Google Colab",
+            defaultextension=".py",
+            initialfile="train_colab_aprj.py",
+            filetypes=[("Python Files", "*.py")],
+        )
+        if not destination:
+            return
+        try:
+            success, message = ai_model.GoogleDriveColabManager.generate_colab_training_notebook(destination)
+            if success:
+                self.online_status.set(f"{message} File: {destination}")
+                messagebox.showinfo(
+                    "Google Colab",
+                    f"{message}\n\nCatatan: skrip yang dihasilkan adalah kerangka awal, "
+                    "belum melakukan training model end-to-end.\n\nDisimpan di:\n{destination}",
+                    parent=self.root,
+                )
+            else:
+                messagebox.showerror("Google Colab", message, parent=self.root)
+        except Exception as error:
+            log_application_error("Ekspor skrip Colab", type(error), error, error.__traceback__)
+            messagebox.showerror("Google Colab", str(error), parent=self.root)
 
     def load_training_manifest(self):
         if not SURVEY_AI_MANIFEST.exists():
