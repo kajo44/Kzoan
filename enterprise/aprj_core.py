@@ -8,7 +8,7 @@ import logging
 import sys
 from pathlib import Path
 
-APP_NAME = "APRJ"
+APP_NAME = "APRJ_Next"
 APP_ROOT = (
     Path(sys.executable).resolve().parent
     if getattr(sys, "frozen", False)
@@ -27,6 +27,10 @@ SURVEY_AI_ROOT = APP_ROOT / "survey_ai"
 SURVEY_AI_DATASET = SURVEY_AI_ROOT / "dataset"
 SURVEY_AI_IMAGES = SURVEY_AI_DATASET / "images"
 SURVEY_AI_MODELS = SURVEY_AI_ROOT / "models"
+SURVEY_AI_MANIFEST = SURVEY_AI_DATASET / "labels.json"
+SURVEY_AI_RUNS = SURVEY_AI_ROOT / "training_runs"
+SURVEY_AI_CACHE = SURVEY_AI_ROOT / "cache"
+SURVEY_DB_PATH = APP_ROOT / "data" / "survey.sqlite3"
 
 # Klasifikasi AI Multi-Task & Perkerasan
 CLASSES = ("baik", "rusak_ringan", "rusak_sedang", "rusak_berat")
