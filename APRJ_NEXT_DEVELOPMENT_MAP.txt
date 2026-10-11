@@ -21,7 +21,7 @@ ATURAN KERJA:
 3. Periksa file yang benar-benar terdampak sebelum mengedit.
 4. Jangan mengganti nama file atau memindahkan modul tanpa memperbarui import,
    build script, dokumentasi, dan pemeriksaan.
-5. Jangan menghapus compatibility shim sampai semua pemanggil lama diperiksa.
+5. File compatibility lama hanya boleh dihapus setelah import modul aktif, entry point, dokumentasi, dan build script diperiksa. Penghapusan harus dicatat di checkpoint.
 6. Setelah perubahan, jalankan pemeriksaan sintaks otomatis dan tes terarah.
 7. Jangan menyatakan build atau fitur berhasil jika belum dijalankan dan diuji.
 8. Hindari menambah dependency baru kecuali ada manfaat terukur dan kebutuhan nyata.
@@ -80,11 +80,15 @@ FILE UTAMA DAN TANGGUNG JAWAB:
   enterprise/dist/APRJ_Next/APRJ_Next.exe
   Salin seluruh folder APRJ_Next, bukan hanya file EXE.
 
-- enterprise/main.py, enterprise/APRJ_v2.py, enterprise/core.py,
-  enterprise/ai_model.py, enterprise/training_engine.py,
-  enterprise/database.py, enterprise/pkrms_utils.py
-  Compatibility shim untuk nama lama. Jangan dihapus sebelum kompatibilitas
-  dipastikan tidak diperlukan.
+- enterprise/requirements-build.txt
+  Dependency tambahan yang hanya dibutuhkan untuk pemaketan Windows.
+
+- enterprise/README.md
+  Panduan penggunaan, persyaratan, alur kerja, lokasi data, dan troubleshooting.
+
+- File compatibility lama (main.py, APRJ_v2.py, core.py, database.py,
+  ai_model.py, pkrms_utils.py, training_engine.py) sudah dihapus setelah
+  pemeriksaan entry point dan modul aktif; aplikasi utama menggunakan nama aprj_*.
 
 ================================================================
 3. PETA FITUR
@@ -438,3 +442,41 @@ BELUM DIVERIFIKASI PADA MESIN TARGET:
 Langkah validasi berikutnya: periksa hasil GitHub Actions setelah commit tes,
 jalankan tes Windows pada folder foto kecil, lalu ukur waktu dan penggunaan memori
 sebelum menguji koleksi besar.
+
+
+================================================================
+CHECKPOINT EVALUASI ENTERPRISE DAN PANDUAN — 2026-10-12
+================================================================
+Tujuan:
+- mengevaluasi struktur dependency/build dan panduan pemakaian;
+- mengurangi file yang tidak diperlukan entry point aktif;
+- membedakan dependency runtime dari dependency build;
+- menjelaskan batasan yang belum teruji.
+
+Perubahan:
+- enterprise/README.md ditambahkan sebagai panduan pengguna dan operasional.
+- enterprise/requirements.txt difokuskan pada dependency runtime langsung.
+- enterprise/requirements-build.txt ditambahkan untuk dependency build (PyInstaller).
+- enterprise/build_portable.bat kini memasang requirements-build.txt, hanya
+  mengompilasi modul aprj_* aktif, dan menyalin panduan ke folder hasil build.
+- File compatibility lama yang tidak diimpor oleh modul utama dihapus:
+  main.py, APRJ_v2.py, core.py, database.py, ai_model.py,
+  pkrms_utils.py, training_engine.py.
+- APRJ_PORTABLE_GUIDE.txt dan peta pengembangan diperbarui.
+
+Alasan:
+- Entry point build yang didukung adalah aprj_main.py.
+- Modul aktif mengimpor modul dengan prefiks aprj_*.
+- File alias lama hanya meneruskan impor dan tidak diperlukan untuk alur aplikasi
+  yang terdefinisi; bila ada skrip eksternal pengguna yang mengimpor nama lama,
+  skrip tersebut harus diperbarui.
+
+Tes/batasan:
+- Perubahan dokumentasi dan dependency sudah dicatat di branch.
+- Perlu pemeriksaan GitHub Actions setelah commit pembersihan.
+- Belum ada bukti build PyInstaller di Windows, smoke test GUI, uji pindah folder,
+  atau validasi runtime ExifTool setelah pengaturan folder data PyInstaller.
+- Sebelum distribusi, verifikasi bahwa bin/exiftool.exe berada pada lokasi yang
+  dibaca aplikasi dan jalankan uji folder foto kecil.
+
+Status: BERJALAN sampai pemeriksaan otomatis dan smoke test runtime selesai.
