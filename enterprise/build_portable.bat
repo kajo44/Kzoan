@@ -53,6 +53,7 @@ python -m PyInstaller --noconfirm --clean --windowed --onedir ^
   --collect-all PIL ^
   --collect-all openpyxl ^
   --collect-all torch ^
+  --hidden-import aprj_core ^
   --hidden-import aprj_ai_model ^
   --hidden-import aprj_training_engine ^
   --hidden-import aprj_database ^
