@@ -14,11 +14,13 @@ ANTARMUKA TERPADU
 - Survei Jalan: pemuatan foto, penilaian manual, navigasi, preview, penyimpanan
   SQLite lokal, dan ekspor Excel.
 - Rekayasa AI: pengelolaan dataset terkonfirmasi, impor hasil survei Excel,
-  validasi dataset, dan kontrol training.
+  validasi dataset, kontrol training, dan pemeriksaan kesiapan inferensi.
 - PKRMS: template Excel, ekspor catatan survei, audit foto, audit dataset
   klasifikasi lama, dan ekspor rekap dataset klasifikasi.
 - Integrasi Online: ekspor skrip awal Google Colab, uji koneksi PostgreSQL,
   dan sinkronisasi catatan survei ke PostgreSQL.
+- Entry point tunggal build adalah main.py yang memanggil APRJ_v2.py. Modul
+  frontend.py lama dihapus setelah fitur UI-nya dipindahkan.
 
 DATA PORTABLE
 -------------
