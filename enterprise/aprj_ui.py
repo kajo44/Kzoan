@@ -840,9 +840,9 @@ class RoadSurveyApp:
             copied, errors = self.map_matching_engine.copy_matched_photos(
                 destination, organize_by="sta" if self.map_matching_organize_var.get() == "STA" else "road"
             )
-            message = f"Foto disalin: {copied}\\nGagal: {len(errors)}"
+            message = f"Foto disalin: {copied}\nGagal: {len(errors)}"
             if errors:
-                message += "\\n\\n" + "\\n".join(errors[:8])
+                message += "\n\n" + "\n".join(errors[:8])
             self.map_matching_status.set(message)
             messagebox.showinfo("Salin Foto Hasil", message, parent=self.root)
         except Exception as error:
@@ -863,7 +863,7 @@ class RoadSurveyApp:
             if not destination:
                 return
             output, count, log_path = engine.create_photo_kmz(folder, destination)
-            message = f"KMZ dibuat: {output}\\nFoto ber-GPS: {count}\\nLog: {log_path}"
+            message = f"KMZ dibuat: {output}\nFoto ber-GPS: {count}\nLog: {log_path}"
             self.map_matching_status.set(message)
             messagebox.showinfo("KMZ Foto GPS", message, parent=self.root)
         except Exception as error:
