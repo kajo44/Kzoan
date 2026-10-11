@@ -23,24 +23,12 @@ import aprj_ai_model as ai_model
 import aprj_database as database
 import aprj_pkrms as pkrms_utils
 import aprj_training_engine as training_engine
-
-APP_NAME = "APRJ_Next"
-APP_ROOT = (
-    Path(sys.executable).resolve().parent
-    if getattr(sys, "frozen", False)
-    else Path(__file__).resolve().parent
+from aprj_core import (
+    APP_NAME, APP_ROOT, APP_LOGS, APP_ERROR_LOG, SURVEY_AI_ROOT,
+    SURVEY_AI_DATASET, SURVEY_AI_IMAGES, SURVEY_AI_MANIFEST, SURVEY_AI_RUNS,
+    SURVEY_AI_MODELS, SURVEY_AI_CACHE, SURVEY_DB_PATH,
 )
-APP_LOGS = APP_ROOT / "logs"
-APP_ERROR_LOG = APP_LOGS / "application_errors.log"
-SURVEY_AI_ROOT = APP_ROOT / "survey_ai"
-SURVEY_AI_DATASET = SURVEY_AI_ROOT / "dataset"
-SURVEY_AI_IMAGES = SURVEY_AI_DATASET / "images"
-SURVEY_AI_MANIFEST = SURVEY_AI_DATASET / "labels.json"
-SURVEY_AI_RUNS = SURVEY_AI_ROOT / "training_runs"
-SURVEY_AI_MODELS = SURVEY_AI_ROOT / "models"
 SURVEY_AI_MODEL = SURVEY_AI_MODELS / "survey_multi_task_model.pth"
-SURVEY_AI_CACHE = SURVEY_AI_ROOT / "cache"
-SURVEY_DB_PATH = APP_ROOT / "data" / "survey.sqlite3"
 
 
 def log_application_error(context, error_type, error, error_traceback):
