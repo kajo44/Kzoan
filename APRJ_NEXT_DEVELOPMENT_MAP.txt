@@ -390,3 +390,13 @@ Batasan:
 
 Status: LULUS untuk normalisasi label dan tes CI; CHECKPOINT 0/runtime keseluruhan
 masih BERJALAN.
+
+
+KOREKSI VALIDASI LANJUTAN:
+- Tes tambahan menemukan frasa "tidak buruk" dan "belum rusak berat" sempat salah
+  diklasifikasikan karena pola negasi belum diterapkan dengan benar.
+- Pola regex diperbaiki dan tes regresi dijalankan kembali.
+- Hasil terbaru LULUS pada commit fb2bf6290070f69060aabad0a52a2c12d9ecde3a:
+  https://github.com/kajo44/Kzoan/actions/runs/38165271037
+- Status ini berlaku untuk kompilasi sintaks Python dan tes unit normalisasi label,
+  bukan bukti bahwa build Windows atau seluruh aplikasi telah lulus uji operasional.
