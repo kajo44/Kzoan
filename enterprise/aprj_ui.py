@@ -370,6 +370,29 @@ class RoadSurveyApp:
         checks.append(("Mode", "Portable/frozen" if getattr(sys, "frozen", False) else "Python source"))
         checks.append(("Folder aplikasi", str(APP_ROOT)))
         checks.append(("SQLite", sqlite3.sqlite_version))
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="wb", prefix=".aprj_diagnostic_", suffix=".tmp",
+                dir=APP_ROOT, delete=True,
+            ) as probe:
+                probe.write(b"APRJ write test")
+                probe.flush()
+            checks.append(("Uji tulis folder aplikasi", "Berhasil"))
+        except OSError as error:
+            checks.append(("Uji tulis folder aplikasi", f"Gagal: {error}"))
+
+        try:
+            if getattr(ai_model, "TORCH_AVAILABLE", False):
+                torch = ai_model.torch
+                if torch.cuda.is_available():
+                    gpu_status = f"CUDA tersedia: {torch.cuda.get_device_name(0)}"
+                else:
+                    gpu_status = "CUDA tidak tersedia; inferensi/training menggunakan CPU"
+            else:
+                gpu_status = "PyTorch tidak tersedia; fitur AI nonaktif"
+        except Exception as error:
+            gpu_status = f"Status CUDA tidak dapat diperiksa: {error}"
+        checks.append(("Akselerasi AI", gpu_status))
 
         packages = (
             ("Pillow", "PIL"), ("openpyxl", "openpyxl"), ("PyTorch", "torch"),
@@ -403,8 +426,7 @@ class RoadSurveyApp:
                        "Tidak ditemukan; fitur pembacaan EXIF batch/map matching tidak tersedia"))
         checks.append(("Log kesalahan", str(APP_ERROR_LOG)))
         checks.append(("Database survei", str(SURVEY_DB_PATH)))
-        checks.append(("Folder log dapat ditulis", "Ya" if os.access(APP_ROOT, os.W_OK) else
-                       "Tidak pasti; bila portable di Program Files, gunakan folder yang dapat ditulis"))
+        checks.append(("Folder log", str(APP_LOGS)))
 
         lines = [
             f"DIAGNOSTIK {APP_NAME}",
