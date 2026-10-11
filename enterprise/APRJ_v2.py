@@ -579,8 +579,9 @@ class RoadSurveyApp:
                         "drainase_kanan_kondisi": str(row[16] or "").strip() or None,
                     }
                     source_folder = Path(str(row[0])) if row[0] else Path()
-                    photo_name = Path(str(row[1])).name
-                    photo_path = source_folder / photo_name
+                    photo_relative_path = str(row[1]).strip()
+                    photo_name = Path(photo_relative_path).name
+                    photo_path = source_folder / photo_relative_path
                     if photo_path.is_file():
                         staged.append({
                             "photo_name": photo_name,
@@ -730,13 +731,24 @@ class RoadSurveyApp:
 
         self.photo_folder = folder
         root_key = os.path.normcase(os.path.abspath(folder))
-        self.survey_data = {
-            Path(key).name: data for key, data in self._stored_survey_records.items()
-            if os.path.normcase(os.path.abspath(str(data.get("folder", Path(key).parent)))) == root_key
-        }
+        self.survey_data = {}
+        for stored_key, data in self._stored_survey_records.items():
+            try:
+                stored_path = Path(stored_key).resolve()
+                stored_path.relative_to(Path(folder).resolve())
+            except (OSError, ValueError):
+                continue
+            relative_key = stored_path.relative_to(Path(folder).resolve()).as_posix()
+            self.survey_data[relative_key] = data
+
         valid_exts = (".png", ".jpg", ".jpeg", ".bmp", ".webp")
         try:
-            self.photo_list = [f for f in os.listdir(folder) if f.lower().endswith(valid_exts)]
+            root_path = Path(folder)
+            self.photo_list = sorted(
+                path.relative_to(root_path).as_posix()
+                for path in root_path.rglob("*")
+                if path.is_file() and path.suffix.lower() in valid_exts
+            )
         except OSError as error:
             log_application_error(f"Membaca folder {folder}", type(error), error, error.__traceback__)
             messagebox.showerror("Error", f"Gagal membaca folder:\n{error}")
