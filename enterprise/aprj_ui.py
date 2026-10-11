@@ -78,37 +78,6 @@ SURVEY_AI_CONFIDENCE_OUTPUTS = tuple(f"ai_{task}_confidence" for task in SURVEY_
 SURVEY_AI_WIDTH_OUTPUTS = tuple(f"ai_{field}_m" for field in SURVEY_WIDTH_FIELDS)
 
 
-def create_survey_model(torch_module, task_classes):
-    class SurveyMultiTaskNet(torch_module.nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.features = torch_module.nn.Sequential(
-                torch_module.nn.Conv2d(3, 32, 3, padding=1),
-                torch_module.nn.ReLU(),
-                torch_module.nn.MaxPool2d(2),
-                torch_module.nn.Conv2d(32, 64, 3, padding=1),
-                torch_module.nn.ReLU(),
-                torch_module.nn.MaxPool2d(2),
-                torch_module.nn.Conv2d(64, 128, 3, padding=1),
-                torch_module.nn.ReLU(),
-                torch_module.nn.AdaptiveAvgPool2d(1),
-            )
-            self.heads = torch_module.nn.ModuleDict(
-                {key: torch_module.nn.Linear(128, len(values)) for key, values in task_classes.items()}
-            )
-            self.width_head = torch_module.nn.Linear(128, len(SURVEY_WIDTH_FIELDS))
-
-        def forward(self, images):
-            features = self.features(images).flatten(1)
-            return {
-                "classes": {key: head(features) for key, head in self.heads.items()},
-                "widths": self.width_head(features),
-            }
-
-    return SurveyMultiTaskNet()
-
-
-
 class SQLiteSurveyStore:
     """Penyimpanan survei lokal persisten berbasis SQLite."""
 
