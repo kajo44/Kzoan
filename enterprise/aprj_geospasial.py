@@ -3,7 +3,7 @@
 
 Implementasi menggunakan pustaka standar Python. ExifTool dibaca dari
 <direktori-aplikasi>/bin/exiftool.exe agar instalasi portabel tidak bergantung
-pada ExifTool global. Input geometri yang didukung: GeoJSON dan KML (LineString).
+pada ExifTool global. Input geometri yang didukung: GeoJSON, KML, dan KMZ (LineString serta gx:Track).
 """
 from __future__ import annotations
 
