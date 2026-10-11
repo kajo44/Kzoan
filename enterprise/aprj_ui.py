@@ -179,9 +179,18 @@ class RoadSurveyApp:
         self.var_lebar_perkerasan = tk.StringVar(value="0")
         
         self.current_selections = {key: "" for key in self.options_config.keys()}
+        self._loading_survey_fields = False
+        self._session_path = APP_ROOT / "config" / "survey_session.json"
         
         self.build_ui()
+        for variable in (
+            self.var_lebar_bahu_kiri, self.var_lebar_drainase_kiri,
+            self.var_lebar_bahu_kanan, self.var_lebar_drainase_kanan,
+            self.var_lebar_perkerasan,
+        ):
+            variable.trace_add("write", self._on_survey_field_changed)
         self.root.protocol("WM_DELETE_WINDOW", self.close_application)
+        self.root.after(250, self.restore_last_session)
 
     def photo_storage_key(self, filename):
         """Kunci stabil agar nama foto sama dari folder berbeda tidak bertabrakan."""
@@ -189,9 +198,120 @@ class RoadSurveyApp:
 
     def close_application(self):
         try:
+            self.save_current_survey()
+            self.save_session()
             self.root.destroy()
         except tk.TclError:
             pass
+
+    def save_session(self):
+        """Simpan lokasi folder dan indeks foto untuk pemulihan sesi."""
+        try:
+            self._session_path.parent.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "photo_folder": self.photo_folder,
+                "photo_index": self.current_photo_idx,
+                "saved_at": datetime.now().isoformat(timespec="seconds"),
+            }
+            temporary = self._session_path.with_suffix(".json.tmp")
+            temporary.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            temporary.replace(self._session_path)
+        except OSError as error:
+            log_application_error("Menyimpan sesi survei", type(error), error, error.__traceback__)
+
+    def restore_last_session(self):
+        """Pulihkan folder dan foto terakhir bila folder sumber masih tersedia."""
+        try:
+            if not self._session_path.is_file():
+                return
+            session = json.loads(self._session_path.read_text(encoding="utf-8"))
+            folder = str(session.get("photo_folder", ""))
+            if not folder or not Path(folder).is_dir():
+                return
+            self.ent_path.delete(0, tk.END)
+            self.ent_path.insert(0, folder)
+            self.muat_foto(resume=True)
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            log_application_error("Memulihkan sesi survei", type(error), error, error.__traceback__)
+
+    def _on_survey_field_changed(self, *_):
+        if not getattr(self, "_loading_survey_fields", False):
+            self.save_current_survey()
+
+    def save_current_survey(self):
+        """Autosave data foto aktif ke SQLite; dipanggil saat nilai berubah."""
+        if not getattr(self, "photo_list", None) or self.current_photo_idx < 0:
+            return False
+        try:
+            filename = self.photo_list[self.current_photo_idx]
+            current_data = {
+                "lebar_bahu_kiri": self.var_lebar_bahu_kiri.get(),
+                "lebar_drainase_kiri": self.var_lebar_drainase_kiri.get(),
+                "lebar_bahu_kanan": self.var_lebar_bahu_kanan.get(),
+                "lebar_drainase_kanan": self.var_lebar_drainase_kanan.get(),
+                "lebar_perkerasan": self.var_lebar_perkerasan.get(),
+            }
+            current_data.update(self.current_selections)
+            current_data["folder"] = self.photo_folder
+            storage_key = self.photo_storage_key(filename)
+            self.survey_store.save(storage_key, current_data)
+            self.survey_data[filename] = current_data
+            self._stored_survey_records[storage_key] = current_data.copy()
+            self.save_session()
+            return True
+        except (OSError, sqlite3.Error, tk.TclError) as error:
+            log_application_error("Autosave penilaian survei", type(error), error, error.__traceback__)
+            return False
+
+    def clean_temporary_files(self):
+        """Bersihkan cache dan file sementara, tanpa menyentuh data/model survei."""
+        if not messagebox.askyesno(
+            "Clean APRJ",
+            "Bersihkan cache AI dan file sementara?\n\n"
+            "Database penilaian, foto sumber, dataset, model AI, dan hasil training tidak dihapus.",
+            parent=self.root,
+        ):
+            return
+        removed_files = 0
+        removed_dirs = 0
+        errors = []
+        cache_root = SURVEY_AI_CACHE
+        try:
+            if cache_root.exists():
+                for item in cache_root.iterdir():
+                    try:
+                        if item.is_dir() and not item.is_symlink():
+                            shutil.rmtree(item)
+                            removed_dirs += 1
+                        else:
+                            item.unlink()
+                            removed_files += 1
+                    except OSError as error:
+                        errors.append(f"{item.name}: {error}")
+            # Hanya file sementara/cache Python yang dikenal, bukan seluruh file aplikasi.
+            for pattern in ("*.tmp", "*.temp", "*.pyc"):
+                for item in APP_ROOT.rglob(pattern):
+                    try:
+                        if any(part.lower() in {".git", "venv", ".venv", "node_modules"} for part in item.parts):
+                            continue
+                        if item.is_file() or item.is_symlink():
+                            item.unlink()
+                            removed_files += 1
+                    except OSError as error:
+                        errors.append(f"{item}: {error}")
+            for item in APP_ROOT.rglob("__pycache__"):
+                try:
+                    if item.is_dir() and not any(part.lower() in {".git", "venv", ".venv", "node_modules"} for part in item.parts):
+                        shutil.rmtree(item)
+                        removed_dirs += 1
+                except OSError as error:
+                    errors.append(f"{item}: {error}")
+        except OSError as error:
+            errors.append(str(error))
+        summary = f"Clean selesai. File dihapus: {removed_files}; folder cache dihapus: {removed_dirs}."
+        if errors:
+            summary += "\n\nSebagian item tidak dapat dihapus:\n" + "\n".join(errors[:8])
+        messagebox.showinfo("Clean APRJ", summary, parent=self.root)
 
     def handle_tk_callback_exception(self, error_type, error, error_traceback):
         log_application_error("Kesalahan antarmuka", error_type, error, error_traceback)
@@ -259,6 +379,10 @@ class RoadSurveyApp:
 
         tk.Button(
             top_frame, text="PANDUAN", bg="#16a085", fg="white", font=("Arial", 9, "bold"), command=self.show_help_and_diagnostics
+        ).pack(side=tk.RIGHT, padx=5, pady=5)
+        tk.Button(
+            top_frame, text="CLEAN", bg="#7f8c8d", fg="white", font=("Arial", 9, "bold"),
+            command=self.clean_temporary_files
         ).pack(side=tk.RIGHT, padx=5, pady=5)
         
         tk.Button(top_frame, text="PREVIEW", bg="#f1c40f", fg="black", font=("Arial", 9, "bold"), width=9, command=self.tampilkan_preview_popup).pack(side=tk.RIGHT, padx=5, pady=5)
@@ -1237,6 +1361,8 @@ class RoadSurveyApp:
         self.current_selections[key_data] = selected_value
         active_btn = self.buttons_ref[key_data][selected_value]
         active_btn.configure(bg="#00b894", fg="white", relief=tk.SUNKEN)
+        if not getattr(self, "_loading_survey_fields", False):
+            self.save_current_survey()
 
     def pilih_folder(self):
         folder = filedialog.askdirectory()
@@ -1245,7 +1371,7 @@ class RoadSurveyApp:
             self.ent_path.insert(0, folder)
             self.photo_folder = folder
 
-    def muat_foto(self):
+    def muat_foto(self, resume=False):
         folder = self.ent_path.get().strip()
         if not folder or not os.path.exists(folder):
             messagebox.showerror("Error", "Source path folder tidak valid!")
@@ -1283,7 +1409,14 @@ class RoadSurveyApp:
             self.lbl_photo_info.configure(text="Foto: 0 / 0 | -")
             return
 
-        self.current_photo_idx = 0
+        resume_index = 0
+        if resume:
+            try:
+                session = json.loads(self._session_path.read_text(encoding="utf-8"))
+                resume_index = int(session.get("photo_index", 0))
+            except (OSError, ValueError, TypeError, json.JSONDecodeError):
+                resume_index = 0
+        self.current_photo_idx = max(0, min(resume_index, len(self.photo_list) - 1))
         self.tampilkan_foto_dan_load_data()
 
     def tampilkan_foto_dan_load_data(self):
@@ -1291,6 +1424,8 @@ class RoadSurveyApp:
             return
 
         filename = self.photo_list[self.current_photo_idx]
+        self.save_session()
+        self._loading_survey_fields = True
         full_path = os.path.join(self.photo_folder, filename)
 
         try:
@@ -1311,6 +1446,8 @@ class RoadSurveyApp:
                 prev_filename = self.photo_list[self.current_photo_idx - 1]
                 if prev_filename in self.survey_data:
                     self.load_saved_fields_into_gui(self.survey_data[prev_filename].copy())
+        self._loading_survey_fields = False
+        self.save_session()
 
     def toggle_ai_mode(self):
         if self.ai_mode_enabled:
@@ -1420,20 +1557,9 @@ class RoadSurveyApp:
         if not self.photo_list or self.current_photo_idx < 0:
             return
 
-        filename = self.photo_list[self.current_photo_idx]
-        current_data = {
-            "lebar_bahu_kiri": self.var_lebar_bahu_kiri.get(),
-            "lebar_drainase_kiri": self.var_lebar_drainase_kiri.get(),
-            "lebar_bahu_kanan": self.var_lebar_bahu_kanan.get(),
-            "lebar_drainase_kanan": self.var_lebar_drainase_kanan.get(),
-            "lebar_perkerasan": self.var_lebar_perkerasan.get()
-        }
-        current_data.update(self.current_selections)
-        current_data["folder"] = self.photo_folder
-        self.survey_data[filename] = current_data
-        storage_key = self.photo_storage_key(filename)
-        self.survey_store.save(storage_key, current_data)
-        self._stored_survey_records[storage_key] = current_data.copy()
+        if not self.save_current_survey():
+            messagebox.showerror("Autosave gagal", "Penilaian belum tersimpan. Periksa ruang disk dan file database.", parent=self.root)
+            return
 
         if self.current_photo_idx < len(self.photo_list) - 1:
             self.current_photo_idx += 1
