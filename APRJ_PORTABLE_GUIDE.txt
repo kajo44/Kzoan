@@ -8,7 +8,7 @@ BUILD
 3. Buka folder enterprise, lalu jalankan build_portable.bat.
 4. Hasil build berada di dist\APRJ_Next\APRJ_Next.exe.
 5. Untuk memindahkan aplikasi, salin seluruh folder dist\APRJ_Next, bukan hanya EXE.
-6. Build script memasang PyTorch CPU. GPU CUDA hanya dapat digunakan pada lingkungan
+6. Build script memasang PyTorch CPU dan menjalankan tes regresi sebelum packaging. GPU CUDA hanya dapat digunakan pada lingkungan
    yang memang mempunyai instalasi PyTorch/CUDA yang cocok; paket portable ini CPU.
 
 ANTARMUKA TERPADU
@@ -19,7 +19,7 @@ ANTARMUKA TERPADU
   checkpoint, pemeriksaan checkpoint, dan prediksi foto untuk ditinjau petugas.
 - PKRMS: template Excel, ekspor catatan survei, audit foto, audit dataset
   klasifikasi lama, dan ekspor rekap dataset klasifikasi.
-- Integrasi Online: ekspor skrip awal Google Colab, uji koneksi PostgreSQL,
+- Integrasi Online: visualisasi peta Leaflet/OpenStreetMap dengan kontrol layer, impor geometri/titik, ekspor skrip awal Google Colab, uji koneksi PostgreSQL,
   dan sinkronisasi catatan survei ke PostgreSQL.
 - Entry point resmi build adalah enterprise/aprj_main.py; UI utama berada di enterprise/aprj_ui.py. File compatibility lama yang tidak diperlukan oleh aplikasi utama telah dikeluarkan dari folder enterprise. Panduan penggunaan rinci berada di enterprise/README.md.
 
@@ -57,7 +57,7 @@ BATASAN DAN VALIDASI
 - Ekspor Colab tetap berupa skrip awal, bukan pipeline training Colab lengkap.
 - PostgreSQL memerlukan server yang dapat dijangkau, kredensial yang benar, dan driver.
 - Template PKRMS adalah struktur kerja; kesesuaian dengan skema resmi harus diverifikasi.
-- build_portable.bat menjalankan pemeriksaan sintaks, bukan pengujian GUI/runtime penuh.
+- build_portable.bat menjalankan pemeriksaan sintaks dan tes regresi otomatis, bukan pengujian GUI/runtime penuh.
   Build Windows dan performa training belum dikonfirmasi di lingkungan pengembang.
 - Folder aplikasi harus dapat ditulis, misalnya C:\Tools\APRJ. Data AI disimpan di
   folder survey_ai di samping executable.
@@ -66,7 +66,7 @@ BATASAN DAN VALIDASI
 MODUL GEOSPASIAL JALAN
 ----------------------
 Panel Modul Geospasial Jalan tersedia pada tab PKRMS. Fitur saat ini:
-- Indeks metadata GPS foto melalui ExifTool dalam batch.
+- Indeks metadata GPS foto melalui ExifTool dalam batch; jika ExifTool tidak tersedia saat runtime source, Pillow menjadi fallback EXIF dasar (tidak selengkap ExifTool).
 - Penyimpanan hasil pada database geospasial terpisah dari database penilaian.
 - Geometri ruas KML atau GeoJSON LineString/MultiLineString.
 - Pencarian kandidat foto per interval STA dan radius dalam meter.
@@ -80,7 +80,7 @@ PERSIAPAN EXIFTOOL
 2. Jika distribusi membutuhkan folder pendamping, salin folder enterprise\bin\exiftool_files beserta isinya.
 3. Build script mencoba menyalin ExifTool dari C:\Tools\ExifTool jika lokasi target belum ada.
 4. Build portable dihentikan jika bin\exiftool.exe tidak ditemukan.
-5. Pastikan folder bin ikut berada di samping executable pada hasil build.
+5. Pastikan folder bin ikut berada di samping executable pada hasil build. Fallback Pillow membantu source runtime jika ExifTool hilang, tetapi build portable tetap meminta ExifTool lokal untuk paket yang lengkap.
 
 BATASAN MODUL GEOSPASIAL
 ------------------------
