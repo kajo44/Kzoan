@@ -58,11 +58,14 @@ Jangan menganggap data tersimpan sebelum operasi simpan berhasil. Pertahankan sa
 
 1. Siapkan file Excel hasil survei dengan sheet dan kolom yang dikenali aplikasi; path foto sumber harus dapat diakses ketika impor.
 2. Gunakan **Pilih Export Excel**, periksa pratinjau, lalu **Konfirmasi Impor**.
-3. Periksa label dan pasangan foto. Jangan mengimpor label yang belum diverifikasi.
-4. Pilih mode training yang tersedia, perangkat, epoch, dan batch size yang sesuai kemampuan komputer.
-5. Mulai training dan tunggu status selesai; hindari menutup aplikasi saat proses berlangsung.
-6. Periksa kesiapan checkpoint, lalu jalankan prediksi pada foto terpilih.
-7. Verifikasi hasil prediksi dan terapkan secara manual. Prediksi bukan hasil survei resmi otomatis.
+3. Proses impor menyimpan referensi jalur foto sumber, hash SHA-256, dan label ke manifest; foto tidak disalin atau dipindahkan.
+4. Pastikan folder foto sumber tetap tersedia dan tidak dipindahkan selama training. Tombol **Validasi Dataset** membantu memeriksa foto yang hilang.
+5. Pilih mode training yang tersedia, perangkat, epoch, dan batch size yang sesuai kemampuan komputer.
+6. Mulai training dan tunggu status selesai; hindari menutup aplikasi saat proses berlangsung.
+7. Periksa kesiapan checkpoint, lalu jalankan prediksi pada foto terpilih.
+8. Verifikasi hasil prediksi dan terapkan secara manual. Prediksi bukan hasil survei resmi otomatis.
+
+Manifest baru menggunakan `source_path` untuk foto sumber. Record lama yang masih memakai `image_path` tetap didukung. Jika foto sumber hilang, aplikasi dapat memakai salinan lama yang memang sudah tercatat sebagai fallback; foto baru tidak disalin saat impor.
 
 Model yang ada adalah CNN yang dilatih dari awal, bukan model pretrained. Kualitasnya bergantung pada mutu dan representativitas label. Estimasi lebar dari foto tidak boleh dianggap ukuran resmi tanpa kalibrasi dan verifikasi lapangan.
 
