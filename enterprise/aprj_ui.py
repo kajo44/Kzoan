@@ -26,7 +26,7 @@ import aprj_ai_model as ai_model
 import aprj_database as database
 import aprj_pkrms as pkrms_utils
 import aprj_training_engine as training_engine
-from aprj_geospasial import GeospatialEngine
+from aprj_geospasial import GeospatialEngine, load_road_segments
 from aprj_metadata import PhotoMetadataTab
 from aprj_map_matching import MapMatchingEngine
 from aprj_core import (
@@ -1412,7 +1412,7 @@ else map.setView([-0.5, 101.5], 7);
             features = []
             road_path = self.map_matching_road_file_var.get().strip()
             if road_path and Path(road_path).is_file():
-                for road_id, road_name, coords in pkrms_utils.load_road_segments(road_path):
+                for road_id, road_name, coords in load_road_segments(road_path):
                     features.append({
                         "type": "Feature",
                         "geometry": {"type": "LineString", "coordinates": [[lon, lat] for lon, lat in coords]},
@@ -1463,7 +1463,7 @@ else map.setView([-0.5, 101.5], 7);
         try:
             features = []
             if path.suffix.lower() in {".kml", ".kmz", ".geojson", ".json"}:
-                for road_id, road_name, coords in pkrms_utils.load_road_segments(path):
+                for road_id, road_name, coords in load_road_segments(path):
                     features.append({
                         "type": "Feature",
                         "geometry": {"type": "LineString", "coordinates": [[float(lon), float(lat)] for lon, lat in coords]},
