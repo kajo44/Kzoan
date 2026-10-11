@@ -466,9 +466,9 @@ class MapMatchingEngine:
                 if lat is None or lon is None:
                     log_lines.append(f"[NO GPS] {path}")
                     continue
-                member = path.name
-                if member in used_names:
-                    member = f"{path.parent.name}_{member}"
+                # Pertahankan path relatif agar nama foto yang sama di subfolder berbeda
+                # tidak saling menimpa di dalam arsip KMZ.
+                member = path.relative_to(folder).as_posix()
                 used_names.add(member)
                 pm = ET.SubElement(doc, f"{{{ns}}}Placemark")
                 ET.SubElement(pm, f"{{{ns}}}name").text = path.name
