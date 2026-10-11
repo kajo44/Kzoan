@@ -30,12 +30,20 @@ class PhotoMetadataTab(ttk.Frame):
         self.file_import = tk.StringVar()
         self.dir_import = tk.StringVar()
         self._busy = False
+        self.subnotebook = ttk.Notebook(self)
+        self.subnotebook.pack(fill="both", expand=True)
+        self.copy_frame = ttk.Frame(self.subnotebook, padding=8)
+        self.export_frame = ttk.Frame(self.subnotebook, padding=8)
+        self.import_frame = ttk.Frame(self.subnotebook, padding=8)
+        self.subnotebook.add(self.copy_frame, text="Salin Metadata")
+        self.subnotebook.add(self.export_frame, text="Ekspor EXIF/GPS")
+        self.subnotebook.add(self.import_frame, text="Impor GPS")
         self._build_copy_tab()
         self._build_export_tab()
         self._build_import_tab()
 
     def _build_copy_tab(self):
-        group = ttk.LabelFrame(self, text="1. Salin metadata EXIF antar-folder", padding=10)
+        group = ttk.LabelFrame(self.copy_frame, text="Salin metadata EXIF antar-folder", padding=10)
         group.pack(fill="x", pady=(0, 8))
         self._path_row(group, "Folder sumber metadata", self.dir_src_copy, self._browse_dir, row=0)
         self._path_row(group, "Folder foto tujuan", self.dir_tgt_copy, self._browse_dir, row=1)
@@ -45,10 +53,10 @@ class PhotoMetadataTab(ttk.Frame):
             variable=self.overwrite_copy,
         ).grid(row=2, column=0, columnspan=3, sticky="w", pady=4)
         ttk.Button(group, text="Salin Metadata", command=self.run_copy).grid(row=3, column=0, sticky="w", pady=5)
-        self.log_copy = self._make_log("Log salin metadata")
+        self.log_copy = self._make_log("Log salin metadata", self.copy_frame)
 
     def _build_export_tab(self):
-        group = ttk.LabelFrame(self, text="2. Ekspor metadata foto", padding=10)
+        group = ttk.LabelFrame(self.export_frame, text="Ekspor metadata foto", padding=10)
         group.pack(fill="x", pady=(0, 8))
         self._path_row(group, "Folder foto sumber", self.dir_export, self._browse_dir, row=0)
         ttk.Label(
@@ -56,10 +64,10 @@ class PhotoMetadataTab(ttk.Frame):
             text="Membaca EXIF umum dan GPS dari file JPG/JPEG langsung di folder yang dipilih.",
         ).grid(row=1, column=0, columnspan=3, sticky="w", pady=4)
         ttk.Button(group, text="Ekstrak ke Excel/CSV", command=self.run_export).grid(row=2, column=0, sticky="w", pady=5)
-        self.log_export = self._make_log("Log ekspor metadata")
+        self.log_export = self._make_log("Log ekspor metadata", self.export_frame)
 
     def _build_import_tab(self):
-        group = ttk.LabelFrame(self, text="3. Impor koordinat GPS dari Excel/CSV", padding=10)
+        group = ttk.LabelFrame(self.import_frame, text="Impor koordinat GPS dari Excel/CSV", padding=10)
         group.pack(fill="x", pady=(0, 8))
         self._path_row(group, "File Excel/CSV", self.file_import, self._browse_data_file, row=0)
         self._path_row(group, "Folder foto tujuan", self.dir_import, self._browse_dir, row=1)
@@ -68,7 +76,7 @@ class PhotoMetadataTab(ttk.Frame):
             text="Kolom wajib: Filename, Latitude, Longitude. File yang diubah harus JPG/JPEG.",
         ).grid(row=2, column=0, columnspan=3, sticky="w", pady=4)
         ttk.Button(group, text="Tulis GPS ke Foto", command=self.run_import).grid(row=3, column=0, sticky="w", pady=5)
-        self.log_import = self._make_log("Log impor GPS")
+        self.log_import = self._make_log("Log impor GPS", self.import_frame)
 
     def _path_row(self, parent, label, variable, browse_command, row):
         ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", padx=(0, 8), pady=4)
@@ -76,8 +84,8 @@ class PhotoMetadataTab(ttk.Frame):
         ttk.Button(parent, text="Pilih", command=lambda: browse_command(variable)).grid(row=row, column=2, padx=(8, 0), pady=4)
         parent.columnconfigure(1, weight=1)
 
-    def _make_log(self, title):
-        frame = ttk.LabelFrame(self, text=title, padding=5)
+    def _make_log(self, title, parent):
+        frame = ttk.LabelFrame(parent, text=title, padding=5)
         frame.pack(fill="both", expand=True, pady=(0, 8))
         area = scrolledtext.ScrolledText(frame, height=7, state="disabled", font=("Consolas", 9))
         area.pack(fill="both", expand=True)
@@ -119,7 +127,7 @@ class PhotoMetadataTab(ttk.Frame):
                 worker()
             except Exception as error:
                 self._log(widget, f"ERROR: {type(error).__name__}: {error}")
-                self.after(0, lambda: messagebox.showerror("Proses gagal", str(error), parent=self))
+                self.after(0, lambda error=error: messagebox.showerror("Proses gagal", str(error), parent=self))
             finally:
                 self.after(0, lambda: setattr(self, "_busy", False))
 
@@ -223,7 +231,7 @@ class PhotoMetadataTab(ttk.Frame):
                         failed += 1
                         continue
                     # Use a temporary JPEG so a failed EXIF write cannot corrupt the target.
-                    with tempfile.TemporaryDirectory(prefix="aprj_meta_") as temp_dir:
+                    with tempfile.TemporaryDirectory(prefix=".aprj_meta_", dir=str(tgt_path.parent)) as temp_dir:
                         temp_path = Path(temp_dir) / f"working{tgt_path.suffix.lower()}"
                         shutil.copy2(tgt_path, temp_path)
                         piexif.insert(exif_bytes, str(temp_path))
@@ -395,7 +403,7 @@ class PhotoMetadataTab(ttk.Frame):
                     })
                     exif["GPS"] = gps
                     exif_bytes = piexif.dump(exif)
-                    with tempfile.TemporaryDirectory(prefix="aprj_gps_") as temp_dir:
+                    with tempfile.TemporaryDirectory(prefix=".aprj_gps_", dir=str(target.parent)) as temp_dir:
                         temp_path = Path(temp_dir) / target.name
                         shutil.copy2(target, temp_path)
                         piexif.insert(exif_bytes, str(temp_path))
