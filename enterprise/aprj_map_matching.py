@@ -161,6 +161,7 @@ class MapMatchingEngine:
         self.app_root = Path(app_root)
         self.exiftool = self._find_exiftool()
         self.last_results = []
+        self.last_diagnostics = []
         self.last_root = ""
         self.last_road_file = ""
         self.last_interval = 100
@@ -497,6 +498,22 @@ class MapMatchingEngine:
         for row in results:
             if row.get("sta_m") is not None and row["photo_path"] not in chosen_paths and row.get("road_id"):
                 row["match_status"] = "Kandidat tidak terpilih: STA sudah memiliki foto lebih baik"
+
+        # Simpan keluaran sebelum fungsi ekspor/UI mengakses properti engine.
+        # Diagnostics mencakup semua foto yang diproses, termasuk foto tanpa GPS;
+        # results hanya memuat foto ber-GPS, sedangkan last_results berisi pilihan per STA.
+        diagnostics = list(results) + list(no_gps)
+        diagnostics.sort(key=lambda row: str(row.get("photo_path", "")).casefold())
+        self.last_results = list(chosen)
+        self.last_diagnostics = diagnostics
+        self.last_root = str(Path(photo_root).resolve())
+        self.last_road_file = str(Path(road_file).resolve())
+        self.last_interval = interval_m
+        if progress:
+            progress("complete", len(self.last_results), len(self.last_diagnostics),
+                     f"Map Matching selesai: {len(self.last_results)} foto terpilih dari {len(self.last_diagnostics)} foto.")
+        return self.last_results
+
     def export_csv(self, destination, include_diagnostics=True):
         rows = self.last_diagnostics if include_diagnostics else self.last_results
         fields = [
