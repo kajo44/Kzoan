@@ -50,22 +50,27 @@ python -m pip install --upgrade pip
 if errorlevel 1 goto :fail
 
 echo.
-echo [1/4] Memasang dependency build dari requirements-build.txt...
+echo [1/5] Memasang dependency build dari requirements-build.txt...
 python -m pip install -r requirements-build.txt
 if errorlevel 1 goto :fail
 
 echo.
-echo [2/4] Memeriksa sintaks seluruh modul dan tes...
+echo [2/5] Menyiapkan bobot pretrained ResNet-18 (perlu internet saat build pertama)...
+python prepare_pretrained_model.py
+if errorlevel 1 goto :fail
+
+echo.
+echo [3/5] Memeriksa sintaks seluruh modul dan tes...
 python -m compileall -q aprj_main.py aprj_ui.py aprj_core.py aprj_database.py aprj_ai_model.py aprj_pkrms.py aprj_training_engine.py aprj_geospasial.py aprj_metadata.py aprj_map_matching.py aprj_exif_fallback.py tests
 if errorlevel 1 goto :fail
 
 echo.
-echo [3/4] Menjalankan tes regresi...
+echo [4/5] Menjalankan tes regresi...
 python -m unittest discover -s tests -v
 if errorlevel 1 goto :fail
 
 echo.
-echo [4/4] Mem-build aplikasi ONEDIR...
+echo [5/5] Mem-build aplikasi ONEDIR...
 python -m PyInstaller --noconfirm --clean --windowed --onedir ^
   --contents-directory "." ^
   --name APRJ_Next ^
@@ -74,6 +79,8 @@ python -m PyInstaller --noconfirm --clean --windowed --onedir ^
   --collect-all piexif ^
   --collect-all openpyxl ^
   --collect-all torch ^
+  --collect-all torchvision ^
+  --add-data "pretrained;pretrained" ^
   --add-data "bin;bin" ^
   --hidden-import aprj_core ^
   --hidden-import aprj_ai_model ^
@@ -91,6 +98,8 @@ if errorlevel 1 goto :fail
 
 if exist "..\APRJ_PORTABLE_GUIDE.txt" copy /Y "..\APRJ_PORTABLE_GUIDE.txt" "dist\APRJ_Next\APRJ_PORTABLE_GUIDE.txt" >nul
 if exist "README.md" copy /Y "README.md" "dist\APRJ_Next\PANDUAN_PENGGUNAAN.md" >nul
+if exist "PENGEMBANGAN_APRJ.txt" copy /Y "PENGEMBANGAN_APRJ.txt" "dist\APRJ_Next\PENGEMBANGAN_APRJ.txt" >nul
+if exist "MODEL_PRETRAINED.txt" copy /Y "MODEL_PRETRAINED.txt" "dist\APRJ_Next\MODEL_PRETRAINED.txt" >nul
 
 echo.
 echo ============================================================
