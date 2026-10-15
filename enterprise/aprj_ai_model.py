@@ -122,9 +122,10 @@ def image_to_tensor(image, augment=False):
     """Ubah PIL Image menjadi tensor RGB dengan normalisasi ImageNet."""
     if not TORCH_AVAILABLE:
         return None
-    image = image.resize((IMAGE_SIZE, IMAGE_SIZE), image.Resampling.BILINEAR)
+    from PIL import Image
+    image = image.resize((IMAGE_SIZE, IMAGE_SIZE), Image.Resampling.BILINEAR)
     if augment and random.random() < 0.5:
-        image = image.transpose(image.Transpose.FLIP_LEFT_RIGHT)
+        image = image.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
     values = torch.frombuffer(bytearray(image.tobytes()), dtype=torch.uint8)
     values = values.reshape(IMAGE_SIZE, IMAGE_SIZE, 3).permute(2, 0, 1).float() / 255.0
     mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
