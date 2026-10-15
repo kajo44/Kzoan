@@ -3,98 +3,85 @@ APRJ NEXT — PERSIAPAN AI SURVEI JALAN
 
 TUJUAN
 ------
-Panduan ini menyiapkan lingkungan Python, dependensi runtime, bobot dasar
-ResNet-18, dan folder kerja AI. Panduan ini TIDAK membuat checkpoint survei
-palsu. Model kondisi jalan hanya tersedia setelah training menggunakan label
-survei yang relevan.
+Panduan ini menyiapkan dependensi, bobot awal ResNet-18, dataset berlabel, training,
+dan pengujian inferensi. Bobot ImageNet saja tidak menghasilkan model kondisi jalan
+APRJ. Model survei membutuhkan checkpoint yang dilatih dari label relevan.
 
-A. PERSIAPAN OTOMATIS
+A. PERSIAPAN
+------------
+1. Gunakan Windows 10/11 x64 dan Python 3.11 x64.
+2. Pastikan folder enterprise memiliki aprj_main.py, requirements.txt,
+   prepare_pretrained_model.py, dan prepare_ai_training.bat.
+3. Jalankan prepare_ai_training.bat.
+4. Tunggu instalasi PyTorch dan penyiapan bobot dasar selesai; koneksi internet
+   diperlukan jika bobot belum tersedia secara lokal.
+5. Buka aplikasi dan masuk ke tab Rekayasa AI.
+
+Script memakai virtual environment enterprise\.venv. Script tidak membuat
+checkpoint survei palsu dan tidak seharusnya menghapus model/dataset yang ada.
+
+B. MENYIAPKAN DATASET
 ---------------------
-1. Pastikan Windows 10/11 64-bit dan Python 3.11 64-bit sudah terpasang.
-2. Pastikan folder enterprise berisi:
-   - aprj_main.py
-   - requirements.txt
-   - prepare_pretrained_model.py
-   - prepare_ai_training.bat
-3. Klik dua kali prepare_ai_training.bat.
-4. Tunggu pemasangan PyTorch dan unduhan bobot ResNet-18 selesai. Pada
-   komputer baru proses ini memerlukan koneksi internet dan ruang disk.
-5. Bila aplikasi terbuka, pindah ke tab Rekayasa AI.
+1. Pada Survei Jalan, pilih foto sumber yang memang boleh digunakan.
+2. Isi kondisi perkerasan, bahu, drainase, dan lebar sesuai hasil yang diverifikasi.
+3. Simpan penilaian dan ekspor ke Excel.
+4. Pada Rekayasa AI, impor file Excel sesuai kontrol yang tersedia, tinjau data,
+   lalu konfirmasi impor. Pastikan path sumber foto masih valid.
+5. Jalankan validasi dataset; perbaiki label kosong, file hilang, dan nilai tidak valid.
+6. Jangan memindahkan foto sumber selama training. Bila dipindah, validasi/relokasi
+   path sebelum training ulang.
 
-Script menggunakan virtual environment enterprise\.venv. Script tidak
-membuat checkpoint kondisi jalan dan tidak menghapus dataset/model yang ada.
+Syarat teknis minimal yang diterapkan training adalah dua foto berlabel yang tersedia
+dan setidaknya satu tugas klasifikasi dengan dua kelas berbeda atau target regresi
+lebar yang memenuhi syarat. Ini hanya syarat untuk mulai, bukan jaminan akurasi.
+Gunakan data yang representatif dan data validasi/uji yang terpisah.
 
-B. MENYIAPKAN DATASET YANG BENAR
--------------------------------
-1. Buka Survei Jalan dan gunakan foto sumber yang memang boleh dipakai.
-2. Isi label kondisi/perkerasan, bahu, drainase, dan/atau lebar sesuai
-   hasil survei yang telah diverifikasi. Jangan mengisi label berdasarkan
-   tebakan hanya untuk memenuhi syarat training.
-3. Ekspor data survei ke Excel melalui fitur aplikasi.
-4. Pada Rekayasa AI, pilih export Excel, tinjau pratinjau, lalu konfirmasi
-   impor. Periksa bahwa path foto sumber masih benar.
-5. Jalankan Validasi Dataset. Perbaiki foto hilang, label kosong, atau nilai
-   yang tidak sesuai pilihan sebelum training.
-6. Pertahankan folder foto sumber tetap di lokasi yang tercatat selama
-   training. Impor tidak dimaksudkan untuk menggandakan semua foto.
+C. TRAINING DAN INFERENSI
+-------------------------
+1. Pilih "Latih ulang dari awal" untuk membuat checkpoint baru.
+2. Pilih "Lanjutkan dari model aktif" hanya jika checkpoint yang sesuai tersedia.
+3. Atur epoch, batch, dan perangkat sesuai kemampuan komputer.
+4. Mulai training dan tunggu status selesai/gagal. Periksa log jika gagal.
+5. Pastikan checkpoint APRJ tersimpan di survey_ai\models\survey_multi_task_model.pth.
+6. Gunakan "Periksa Kesiapan Model" lalu uji foto yang tidak dipakai sebagai data latih.
+7. Bandingkan hasil dengan penilaian manusia; jangan menganggap prediksi benar otomatis.
 
-SYARAT TEKNIS MINIMUM
+D. MODE AI DAN POP-UP
 ---------------------
-Kode training saat ini memerlukan sedikitnya 2 foto berlabel dengan file
-yang masih tersedia, serta setidaknya satu tugas klasifikasi dengan dua kelas
-berbeda atau nilai numerik yang cukup untuk tugas regresi lebar.
+Pada toolbar Survei Jalan:
+- MODE AI: ON mengaktifkan prediksi otomatis saat foto dimuat/berpindah.
+- MODE AI: OFF menghentikan prediksi otomatis.
+- POP-UP AI: ON (default) menampilkan konfirmasi sebelum saran AI diterapkan.
+- POP-UP AI: OFF menerapkan saran ke form tanpa dialog konfirmasi penerapan.
+  Ini tidak mematikan popup error/diagnostik dan tidak menyimpan penilaian final
+  secara otomatis. Tinjau form dan simpan penilaian seperti biasa.
 
-Ini hanya ambang teknis untuk memulai, BUKAN ukuran dataset yang memadai
-untuk menghasilkan model akurat. Untuk penggunaan yang berarti, kumpulkan
-dataset representatif yang mencakup variasi ruas, kamera, cuaca, pencahayaan,
-jenis perkerasan, dan tingkat kerusakan. Gunakan label yang konsisten dan
-pisahkan data validasi/uji agar kualitas dapat dinilai secara jujur.
+Pengaturan POP-UP AI disimpan pada config\survey_session.json. Sesi lama yang
+belum memiliki nilai ini menggunakan default ON agar perilaku sebelumnya dipertahankan.
+Jika checkpoint tidak tersedia atau inferensi gagal, aplikasi tetap dapat menampilkan
+pesan error. Toggle ini hanya mengendalikan dialog konfirmasi hasil prediksi.
 
-C. TRAINING PERTAMA
--------------------
-1. Pilih mode "Latih ulang dari awal". Jangan pilih "Lanjutkan dari model
-   aktif" karena checkpoint belum ada.
-2. Atur epoch dan batch sesuai kemampuan perangkat. CPU dapat digunakan,
-   tetapi biasanya lebih lambat daripada GPU yang kompatibel.
-3. Mulai training dan tunggu sampai aplikasi melaporkan keberhasilan.
-   Jangan menutup aplikasi saat proses berlangsung.
-4. Periksa file berikut:
-   survey_ai\models\survey_multi_task_model.pth
-5. Klik "Periksa Kesiapan Model". Aplikasi harus berhasil memuat checkpoint.
-6. Uji prediksi pada beberapa foto yang tidak digunakan untuk menyusun label
-   training jika memungkinkan. Bandingkan dengan penilaian manusia dan
-   koreksi semua hasil yang salah.
-
-D. ARTI DUA FILE MODEL
-----------------------
+E. FILE MODEL
+-------------
 enterprise\pretrained\resnet18-f37072fd.pth
-  Bobot ResNet-18 ImageNet: fitur visual umum sebagai titik awal training.
-  Ini bukan model yang telah dilatih khusus untuk kondisi jalan APRJ.
+  Bobot umum ImageNet sebagai titik awal training.
 
-enterprise\survey_ai\models\survey_multi_task_model.pth
-  Checkpoint APRJ yang dihasilkan oleh training dengan label survei. File
-  inilah yang diperiksa oleh tombol "Periksa Kesiapan Model" dan digunakan
-  saat inferensi.
+survey_ai\models\survey_multi_task_model.pth
+  Checkpoint APRJ hasil training; digunakan oleh inferensi.
 
-JANGAN mengganti nama bobot pretrained menjadi survey_multi_task_model.pth.
-Arsitektur/metadata checkpoint berbeda; tindakan itu tidak melatih model
-dan dapat menyebabkan kegagalan saat memuat atau prediksi.
+Jangan mengganti nama file pretrained menjadi checkpoint APRJ.
 
-E. JIKA MASIH GAGAL
--------------------
-- Periksa pesan terminal dan folder logs.
-- Jika bobot ResNet gagal diunduh, cek koneksi/proxy/firewall dan ruang disk,
-  lalu jalankan kembali prepare_ai_training.bat.
-- Jika dataset tidak valid, jalankan Validasi Dataset dan periksa path foto.
-- Jika training selesai tetapi checkpoint tidak ada, periksa status/log
-  training sebelum mengulang.
-- Jika checkpoint ada tetapi tidak bisa dimuat, simpan salinan file dan
-  periksa error sebelum mengganti atau menghapusnya.
+F. PEMECAHAN MASALAH
+--------------------
+- Bobot pretrained hilang: jalankan prepare_pretrained_model.py.
+- Training gagal: baca pesan lengkap dan logs; periksa dataset, path, ruang disk,
+  dan kompatibilitas PyTorch/torchvision.
+- Foto sumber hilang: pulihkan lokasi atau perbaiki path dataset lalu validasi ulang.
+- Checkpoint gagal dimuat: simpan salinan dan periksa log sebelum mengganti file.
+- CPU lambat: proses bisa lebih lama daripada GPU yang didukung.
 
 BATASAN
 -------
-Tidak ada checkpoint survei APRJ yang dapat dihasilkan dengan benar tanpa
-dataset foto dan label survei yang relevan. Bobot pretrained ImageNet tidak
-mewakili standar PKRMS atau penilaian kondisi jalan Indonesia. Prediksi,
-terutama estimasi lebar dari foto, harus dianggap saran untuk ditinjau,
-bukan hasil ukur resmi tanpa validasi lapangan.
+Prediksi AI adalah saran, bukan keputusan resmi. Estimasi lebar dari foto memerlukan
+kalibrasi dan validasi lapangan. Kualitas model bergantung pada dataset, label,
+representativitas, dan evaluasi; jumlah foto minimum teknis tidak menjamin akurasi.
