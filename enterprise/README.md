@@ -72,8 +72,10 @@ training pertama. Checkpoint yang dipakai inferensi adalah
 1. Buka aplikasi dan pilih tab **Survei Jalan**.
 2. Pilih/muat folder atau foto sesuai kontrol pada antarmuka.
 3. Tinjau foto dan lengkapi data survei secara manual.
-4. Simpan catatan dan uji pembukaan kembali sebelum memproses banyak data.
-5. Gunakan ekspor Excel untuk membuat salinan kerja atau bahan impor AI.
+4. **MODE AI: ON/OFF** mengendalikan prediksi otomatis saat foto dimuat atau berpindah.
+5. **POP-UP AI: ON** meminta konfirmasi sebelum saran prediksi diterapkan. **POP-UP AI: OFF** melewati dialog konfirmasi dan menerapkan saran ke form langsung. Preferensi disimpan di `config/survey_session.json`; default untuk sesi lama adalah ON. Toggle ini tidak menonaktifkan popup error/diagnostik.
+6. Saran AI tetap harus ditinjau. Penilaian tidak dianggap sebagai hasil final otomatis; simpan dan verifikasi catatan survei.
+7. Gunakan ekspor Excel untuk membuat salinan kerja atau bahan impor AI.
 
 Jangan menganggap data tersimpan sebelum operasi simpan berhasil. Pertahankan salinan cadangan database dan file sumber.
 
@@ -86,7 +88,9 @@ Jangan menganggap data tersimpan sebelum operasi simpan berhasil. Pertahankan sa
 5. Pilih mode training yang tersedia, perangkat, epoch, dan batch size yang sesuai kemampuan komputer.
 6. Mulai training dan tunggu status selesai; hindari menutup aplikasi saat proses berlangsung.
 7. Periksa kesiapan checkpoint, lalu jalankan prediksi pada foto terpilih.
-8. Verifikasi hasil prediksi dan terapkan secara manual. Prediksi bukan hasil survei resmi otomatis.
+8. Gunakan **CLEAN — Bersihkan Cache** pada tab Rekayasa AI untuk membersihkan cache/berkas sementara yang dikenal. CLEAN tidak dimaksudkan untuk menghapus database survei, foto sumber, dataset, checkpoint, atau hasil training.
+9. Gunakan **Ekspor Hasil Proses (Excel)** untuk membuat satu workbook dengan lembar Ringkasan, Survei Jalan, Geospasial STA, dan Map Matching sesuai hasil yang tersedia. Diagnostik Map Matching yang diekspor adalah hasil proses terakhir di sesi aplikasi.
+10. Verifikasi hasil prediksi dan ekspor. Prediksi bukan hasil survei resmi otomatis.
 
 Manifest baru menggunakan `source_path` untuk foto sumber. Record lama yang masih memakai `image_path` tetap didukung. Jika foto sumber hilang, aplikasi dapat memakai salinan lama yang memang sudah tercatat sebagai fallback; foto baru tidak disalin saat impor. Tombol **Relokasi Dataset** dapat mencari foto yang hilang pada folder baru secara rekursif, mencocokkan SHA-256, lalu memperbarui `source_path` tanpa menyalin, memindahkan, atau menghapus file. Path yang masih valid tidak diubah. Hash yang ditemukan pada beberapa file dianggap ambigu dan tidak dipakai untuk relokasi otomatis. Relokasi memerlukan SHA-256 pada manifest; record lama tanpa hash harus diimpor ulang dari Excel atau diperbaiki secara manual.
 
