@@ -1,16 +1,24 @@
-RIWAYAT PERUBAHAN APRJ NEXT
-============================
-Pembaruan: persiapan model pretrained dan dokumentasi pengembangan
+RIWAYAT PERUBAHAN — APRJ NEXT
+==============================
 
-- Training baru diarahkan ke backbone ResNet-18 dengan bobot ImageNet lokal.
-- Menambahkan script persiapan bobot saat build, bukan saat aplikasi dijalankan.
-- Memasukkan torchvision dan folder pretrained dalam paket PyInstaller ONEDIR.
-- Menambahkan metadata arsitektur pada checkpoint baru.
-- Checkpoint lama tanpa metadata arsitektur diarahkan ke arsitektur legacy_cnn.
-- Memperbarui panduan penggunaan serta menambahkan catatan pengembangan dan model.
+Pembaruan source terbaru
+------------------------
+- Menambahkan tombol POP-UP AI ON/OFF pada toolbar Survei Jalan, terpisah dari
+  MODE AI ON/OFF.
+- POP-UP AI ON mempertahankan dialog konfirmasi sebelum prediksi diterapkan.
+- POP-UP AI OFF melewati dialog konfirmasi penerapan dan mengisi saran AI ke form.
+- Preferensi popup disimpan dalam config/survey_session.json; default ON untuk
+  konfigurasi sesi lama. Popup error/diagnostik tidak ikut dimatikan.
+- Memindahkan tombol CLEAN ke tab Rekayasa AI.
+- Menambahkan ekspor hasil proses ke satu workbook Excel: ringkasan, data survei,
+  hasil Modul Geospasial Jalan, dan diagnostik Map Matching yang tersedia.
+- Memperbarui panduan model, panduan persiapan AI, catatan pengembangan, dan README.
 
-CATATAN STATUS
---------------
-Pembaruan source harus tetap melewati tes otomatis, build Windows, dan smoke test.
-Dokumen ini tidak menyatakan build portable telah dijalankan atau model telah divalidasi
-pada dataset kondisi jalan.
+Batasan dan verifikasi
+----------------------
+- Saran AI tetap perlu ditinjau dan disimpan oleh petugas.
+- Bobot ResNet-18 ImageNet bukan model kondisi jalan APRJ yang sudah matang.
+- Perubahan source harus diuji dengan compileall, unit tests, UI Windows, dan build
+  PyInstaller ONEDIR sebelum dinyatakan siap rilis.
+- Catatan ini merekam perubahan source/dokumentasi, bukan klaim bahwa build Windows,
+  pengujian pengguna, atau validasi model lapangan telah berhasil.
