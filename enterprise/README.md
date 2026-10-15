@@ -77,7 +77,7 @@ Jangan menganggap data tersimpan sebelum operasi simpan berhasil. Pertahankan sa
 
 Manifest baru menggunakan `source_path` untuk foto sumber. Record lama yang masih memakai `image_path` tetap didukung. Jika foto sumber hilang, aplikasi dapat memakai salinan lama yang memang sudah tercatat sebagai fallback; foto baru tidak disalin saat impor. Tombol **Relokasi Dataset** dapat mencari foto yang hilang pada folder baru secara rekursif, mencocokkan SHA-256, lalu memperbarui `source_path` tanpa menyalin, memindahkan, atau menghapus file. Path yang masih valid tidak diubah. Hash yang ditemukan pada beberapa file dianggap ambigu dan tidak dipakai untuk relokasi otomatis. Relokasi memerlukan SHA-256 pada manifest; record lama tanpa hash harus diimpor ulang dari Excel atau diperbaiki secara manual.
 
-Model yang ada adalah CNN yang dilatih dari awal, bukan model pretrained. Kualitasnya bergantung pada mutu dan representativitas label. Estimasi lebar dari foto tidak boleh dianggap ukuran resmi tanpa kalibrasi dan verifikasi lapangan.
+Training baru menggunakan backbone ResNet-18 dengan bobot pretrained ImageNet yang disiapkan saat build dan dibundel lokal; aplikasi tidak mengunduh bobot saat runtime. Bobot ImageNet adalah fitur visual umum, bukan model yang telah dilatih khusus untuk kondisi jalan. Kepala klasifikasi/regresi APRJ tetap harus dilatih menggunakan label survei yang relevan. Kualitas bergantung pada mutu dan representativitas label. Estimasi lebar dari foto tidak boleh dianggap ukuran resmi tanpa kalibrasi dan verifikasi lapangan.
 
 ### C. Map Matching
 
