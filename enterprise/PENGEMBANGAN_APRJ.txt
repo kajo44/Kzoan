@@ -1,0 +1,68 @@
+APRJ NEXT — CATATAN PENGEMBANGAN
+================================
+Repositori : https://github.com/kajo44/Kzoan
+Branch     : crg_aprj
+Folder     : enterprise
+Entry point: aprj_main.py
+UI utama  : aprj_ui.py
+Target     : Windows 10/11 x64, Python 3.11 x64, paket PyInstaller ONEDIR
+
+PRINSIP KERJA
+-------------
+1. Fokus pada APRJ Next di branch crg_aprj. Jangan mencampur proyek GeoSurvey/GeoSurveyJalan_Next.
+2. Jangan menghapus dataset, manifest, database, checkpoint model, atau file sumber pengguna saat refactor.
+3. Jangan mengklaim fitur atau pengujian berhasil sebelum benar-benar dijalankan.
+4. Pisahkan fakta, asumsi, dan estimasi pada dokumentasi serta laporan pengujian.
+5. Prediksi AI dan hasil map matching adalah bantuan analitis; verifikasi petugas tetap diperlukan.
+
+FILE UTAMA
+----------
+aprj_main.py             Entry point resmi.
+aprj_ui.py               Antarmuka Tkinter dan alur pengguna.
+aprj_core.py             Konstanta, skema, dan aturan inti.
+aprj_database.py         Penyimpanan lokal/integrasi database.
+aprj_ai_model.py         Arsitektur ResNet-18 multi-task dan kompatibilitas CNN lama.
+aprj_training_engine.py  Training, checkpoint, inferensi, dan ringkasan training.
+aprj_map_matching.py     Map matching foto/ruas/STA.
+aprj_geospasial.py       Fitur geospasial dan ExifTool.
+aprj_metadata.py         Baca/tulis/ekspor metadata foto.
+requirements.txt         Dependensi runtime langsung.
+requirements-build.txt   Dependensi runtime + PyInstaller.
+prepare_pretrained_model.py Menyiapkan bobot ResNet-18 lokal saat build.
+build_portable.bat       Pemeriksaan dan build ONEDIR.
+tests\                  Tes regresi otomatis.
+
+ALUR PENGEMBANGAN
+-----------------
+1. Pastikan branch crg_aprj aktif dan buat backup/commit sebelum perubahan.
+2. Baca modul terkait dan tes yang sudah ada sebelum mengubah API atau format data.
+3. Perbarui tes regresi untuk perilaku baru dan kasus error/fallback.
+4. Jalankan:
+   python -m compileall -q .
+   python -m unittest discover -s tests -v
+5. Untuk build Windows, jalankan build_portable.bat dari folder enterprise.
+6. Build memerlukan internet pada persiapan awal bobot pretrained. Setelah dibundel,
+   aplikasi portable tidak perlu internet untuk memuat bobot model tersebut.
+7. Uji EXE pada komputer build dan komputer Windows bersih; salin seluruh folder
+   dist\APRJ_Next, bukan hanya APRJ_Next.exe.
+
+MODEL DAN DATASET
+-----------------
+- Foto dataset dirujuk lewat path sumber; impor tidak boleh diam-diam memindah foto.
+- Jika foto sumber dipindah, validasi/relokasi dataset perlu dijalankan.
+- Latih ulang dari awal menggunakan backbone ResNet-18 ImageNet dan kepala APRJ baru.
+- Lanjutkan dari model aktif menggunakan arsitektur yang tersimpan di checkpoint.
+- Checkpoint lama tanpa metadata architecture dianggap legacy_cnn agar tetap terbaca.
+- Jangan menyebut ImageNet pretrained sebagai model kondisi jalan yang sudah matang.
+- Model baru harus dilatih dengan label survei yang sesuai, diuji pada data validasi,
+  dan hasilnya diverifikasi secara lapangan sebelum penggunaan operasional.
+
+CHECKLIST SEBELUM MERGE
+-----------------------
+[ ] Tes otomatis lulus.
+[ ] Tidak ada perubahan path/file pengguna yang destruktif.
+[ ] Checkpoint lama dapat dibaca atau pesan kompatibilitas jelas.
+[ ] Bobot pretrained ikut masuk ke dist\APRJ_Next\pretrained.
+[ ] Build ONEDIR selesai tanpa error.
+[ ] Uji startup, survei, ekspor, training, inference, Map Matching, dan metadata.
+[ ] Dokumentasi requirements dan changelog diperbarui.
