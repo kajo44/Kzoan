@@ -1,6 +1,6 @@
-# APRJ Next - dependensi untuk pengembangan dan build portable ONEDIR.
-# Memasang semua dependensi runtime terlebih dahulu.
+# APRJ Next - dependensi pengembangan dan build portable ONEDIR.
+# Semua dependensi runtime dipasang dari requirements.txt.
 -r requirements.txt
 
-# Pengemas aplikasi Windows; bukan dependensi runtime aplikasi yang sudah dibuild.
+# Pengemas aplikasi Windows; bukan dependensi runtime setelah build.
 PyInstaller>=6.10,<7
