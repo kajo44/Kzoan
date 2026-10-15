@@ -1,0 +1,16 @@
+RIWAYAT PERUBAHAN APRJ NEXT
+============================
+Pembaruan: persiapan model pretrained dan dokumentasi pengembangan
+
+- Training baru diarahkan ke backbone ResNet-18 dengan bobot ImageNet lokal.
+- Menambahkan script persiapan bobot saat build, bukan saat aplikasi dijalankan.
+- Memasukkan torchvision dan folder pretrained dalam paket PyInstaller ONEDIR.
+- Menambahkan metadata arsitektur pada checkpoint baru.
+- Checkpoint lama tanpa metadata arsitektur diarahkan ke arsitektur legacy_cnn.
+- Memperbarui panduan penggunaan serta menambahkan catatan pengembangan dan model.
+
+CATATAN STATUS
+--------------
+Pembaruan source harus tetap melewati tes otomatis, build Windows, dan smoke test.
+Dokumen ini tidak menyatakan build portable telah dijalankan atau model telah divalidasi
+pada dataset kondisi jalan.
