@@ -519,11 +519,6 @@ class RoadSurveyApp:
         tk.Button(
             top_frame, text="PANDUAN", bg="#16a085", fg="white", font=("Arial", 9, "bold"), command=self.show_help_and_diagnostics
         ).pack(side=tk.RIGHT, padx=5, pady=5)
-        tk.Button(
-            top_frame, text="CLEAN", bg="#7f8c8d", fg="white", font=("Arial", 9, "bold"),
-            command=self.clean_temporary_files
-        ).pack(side=tk.RIGHT, padx=5, pady=5)
-        
         tk.Button(top_frame, text="PREVIEW", bg="#f1c40f", fg="black", font=("Arial", 9, "bold"), width=9, command=self.tampilkan_preview_popup).pack(side=tk.RIGHT, padx=5, pady=5)
         tk.Button(top_frame, text="EKSPORT", bg="#e67e22", fg="white", font=("Arial", 9, "bold"), width=9, command=self.eksport_ke_excel).pack(side=tk.RIGHT, padx=5, pady=5)
         
@@ -1762,11 +1757,114 @@ else map.setView([-0.5, 101.5], 7);
     def save_training_manifest(self):
         save_record_manifest(SURVEY_AI_MANIFEST, self.training_records)
 
+    def export_processed_results(self):
+        """Ekspor seluruh hasil proses lokal yang tersedia ke satu workbook Excel."""
+        try:
+            survey_records = self.survey_store.load_all()
+            geospatial_rows = []
+            if self.geospatial_job_id:
+                geospatial_rows = self.geospatial_engine.store.get_matches(self.geospatial_job_id)
+            map_matching_rows = []
+            if self.map_matching_engine is not None:
+                map_matching_rows = list(getattr(self.map_matching_engine, "last_diagnostics", []) or [])
+
+            if not survey_records and not geospatial_rows and not map_matching_rows:
+                messagebox.showinfo(
+                    "Ekspor Hasil Proses",
+                    "Belum ada hasil survei, geospasial, atau Map Matching yang tersimpan untuk diekspor.",
+                    parent=self.root,
+                )
+                return
+
+            destination = filedialog.asksaveasfilename(
+                parent=self.root,
+                title="Ekspor Semua Hasil Proses APRJ",
+                defaultextension=".xlsx",
+                initialfile=f"hasil_proses_aprj_{datetime.now():%Y%m%d_%H%M%S}.xlsx",
+                filetypes=[("Excel Workbook", "*.xlsx")],
+            )
+            if not destination:
+                return
+
+            wb = openpyxl.Workbook()
+            summary = wb.active
+            summary.title = "Ringkasan"
+            summary.append(["Jenis hasil", "Jumlah rekaman", "Keterangan"])
+            summary_rows = [
+                ("Survei Jalan", len(survey_records), "Catatan survei yang tersimpan dalam database lokal"),
+                ("Modul Geospasial Jalan", len(geospatial_rows), "Hasil pekerjaan geospasial terakhir yang dipilih aplikasi"),
+                ("Map Matching", len(map_matching_rows), "Diagnostik semua foto pada proses Map Matching terakhir di sesi ini"),
+            ]
+            for row in summary_rows:
+                summary.append(row)
+
+            if survey_records:
+                sheet = wb.create_sheet("Survei Jalan")
+                keys = sorted({key for data in survey_records.values() for key in data.keys()})
+                headers = ["photo_key", "photo_name", "source_folder"] + [key for key in keys if key not in {"filename", "folder"}]
+                sheet.append(headers)
+                for photo_key, data in sorted(survey_records.items(), key=lambda item: str(item[0]).casefold()):
+                    sheet.append([
+                        photo_key,
+                        data.get("filename") or Path(str(photo_key)).name,
+                        data.get("folder") or str(Path(str(photo_key)).parent),
+                    ] + [data.get(key, "") for key in headers[3:]])
+
+            if geospatial_rows:
+                sheet = wb.create_sheet("Geospasial STA")
+                headers = ["road_id", "road_name", "sta_m", "sta_latitude", "sta_longitude",
+                           "photo_path", "photo_latitude", "photo_longitude", "distance_m", "status"]
+                sheet.append(headers)
+                for row in geospatial_rows:
+                    sheet.append(list(row))
+
+            if map_matching_rows:
+                sheet = wb.create_sheet("Map Matching")
+                keys = sorted({key for row in map_matching_rows for key in row.keys() if not str(key).startswith("_")})
+                sheet.append(keys)
+                for row in map_matching_rows:
+                    sheet.append([row.get(key, "") for key in keys])
+
+            # Format ringan agar workbook siap difilter dan dibaca.
+            for sheet in wb.worksheets:
+                sheet.freeze_panes = "A2"
+                sheet.auto_filter.ref = sheet.dimensions
+                for cell in sheet[1]:
+                    cell.font = XlFont(bold=True, color="FFFFFF")
+                    cell.fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+                    cell.alignment = XlAlignment(vertical="center", wrap_text=True)
+                for column_cells in sheet.columns:
+                    max_length = max((len(str(cell.value)) if cell.value is not None else 0) for cell in list(column_cells)[:200])
+                    sheet.column_dimensions[column_cells[0].column_letter].width = min(max(max_length + 2, 12), 48)
+
+            wb.save(destination)
+            message = (
+                f"Ekspor selesai: {destination}\n\n"
+                f"Catatan survei: {len(survey_records)}\n"
+                f"Hasil geospasial: {len(geospatial_rows)}\n"
+                f"Diagnostik Map Matching: {len(map_matching_rows)}"
+            )
+            self.ai_training_status.set(message)
+            messagebox.showinfo("Ekspor Hasil Proses", message, parent=self.root)
+        except Exception as error:
+            log_application_error("Ekspor seluruh hasil proses", type(error), error, error.__traceback__)
+            messagebox.showerror(
+                "Ekspor Hasil Proses",
+                f"Ekspor gagal: {error}\n\nDetail tersimpan di:\n{APP_ERROR_LOG}",
+                parent=self.root,
+            )
+
     def build_ai_tab(self):
         self.ai_tab.columnconfigure(0, weight=1)
         self.ai_tab.rowconfigure(2, weight=1)
         ttk.Label(self.ai_tab, text="Rekayasa & Pelatihan AI Survei Jalan", font=("Segoe UI", 15, "bold")).grid(row=0, column=0, sticky="w", pady=(0, 4))
-        ttk.Label(self.ai_tab, text="Kelola dataset terkonfirmasi manusia dan latih model multi-task AI secara lokal.").grid(row=1, column=0, sticky="w", pady=(0, 10))
+        ttk.Label(self.ai_tab, text="Kelola dataset terkonfirmasi manusia, latih model multi-task AI, dan ekspor hasil proses lokal.").grid(row=1, column=0, sticky="w", pady=(0, 10))
+
+        utility_frame = ttk.LabelFrame(self.ai_tab, text="Pemeliharaan dan Ekspor Hasil")
+        utility_frame.grid(row=1, column=0, sticky="ew", pady=(28, 6))
+        ttk.Button(utility_frame, text="CLEAN — Bersihkan Cache", command=self.clean_temporary_files).pack(side="left", padx=6, pady=6)
+        ttk.Button(utility_frame, text="Ekspor Hasil Proses (Excel)", command=self.export_processed_results).pack(side="left", padx=6, pady=6)
+        ttk.Label(utility_frame, text="Ekspor mencakup catatan survei tersimpan, hasil Modul Geospasial Jalan, dan hasil Map Matching yang tersedia.").pack(side="left", padx=6, pady=6)
 
         dataset_frame = ttk.LabelFrame(self.ai_tab, text="Dataset Terkonfirmasi")
         dataset_frame.grid(row=2, column=0, sticky="nsew", pady=5)
