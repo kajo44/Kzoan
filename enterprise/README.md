@@ -178,4 +178,8 @@ Fitur **CLEAN** ditujukan untuk cache yang dikenali; jangan menggunakannya sebag
 
 ## 8. Status validasi
 
-Tes unit dan pemeriksaan sintaks melalui GitHub Actions tidak membuktikan seluruh GUI, build Windows, training AI, PostgreSQL, skala jutaan foto, atau akurasi lapangan telah teruji. Sebelum penggunaan operasional, lakukan smoke test pada dataset kecil yang hasilnya dapat diverifikasi manual, lalu tingkatkan skala secara bertahap.
+- Pemeriksaan sintaks Python dan tes regresi otomatis: **lulus** pada GitHub Actions untuk commit `8d3804074004a6f766de5e7c38edfdc09b6c6cbb`. [Lihat hasil CI](https://github.com/kajo44/Kzoan/actions/runs/38797687356).
+- Fitur POP-UP AI ON/OFF sudah masuk ke source; perilaku GUI perlu diuji langsung pada Windows dengan model/checkpoint yang tersedia.
+- Build PyInstaller ONEDIR pada Windows, training AI nyata, koneksi PostgreSQL, ekspor menggunakan data operasional, beban jutaan foto, dan akurasi lapangan **belum dibuktikan oleh CI ini**.
+
+Sebelum penggunaan operasional, jalankan smoke test pada dataset kecil yang hasilnya dapat diverifikasi manual. Periksa kedua keadaan POP-UP AI, simpan/pulihkan sesi, file Excel yang dihasilkan, serta startup paket portable pada Windows bersih. Naikkan skala secara bertahap dan catat error yang muncul.
