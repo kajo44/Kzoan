@@ -823,10 +823,12 @@ class RoadSurveyApp:
                 raise ValueError("Pilih folder root foto yang tersedia.")
             if not road_file or not Path(road_file).is_file():
                 raise ValueError("Pilih file geometri ruas yang tersedia.")
-            if interval < 1 or not 1 <= radius <= 5000 or not 1 <= speed <= 160:
-                raise ValueError("Periksa interval STA, radius 1–5000 m, dan kecepatan 1–160 km/jam.")
-            if not 1 <= heading <= 180 or not 1 <= gap <= 300:
-                raise ValueError("Toleransi arah harus 1–180° dan jendela waktu 1–300 detik.")
+            # Tidak ada batas maksimum arbitrer pada parameter. Nilai tetap harus
+            # masuk akal secara matematis; validasi rinci juga dilakukan engine.
+            if interval < 1:
+                raise ValueError("Interval STA harus minimal 1 meter.")
+            if radius <= 0 or speed <= 0 or heading < 0 or gap <= 0:
+                raise ValueError("Radius, kecepatan, dan jendela waktu harus lebih besar dari 0; toleransi arah tidak boleh negatif.")
             engine = MapMatchingEngine(APP_ROOT)
         except Exception as error:
             messagebox.showwarning("Map Matching", str(error), parent=self.root)
