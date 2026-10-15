@@ -1,38 +1,60 @@
-APRJ NEXT — MODEL PRETRAINED
-============================
-TUJUAN
+APRJ NEXT — PANDUAN MODEL PRETRAINED
+====================================
+
+FUNGSI
 ------
-Aplikasi portable menyertakan bobot visual umum ResNet-18 dari ImageNet agar model
-tidak perlu mengunduh bobot saat dijalankan. Kepala model APRJ dilatih lebih lanjut
-menggunakan label dataset survei yang telah dikonfirmasi.
+APRJ memakai bobot visual umum ResNet-18 ImageNet sebagai titik awal training.
+Bobot ini membantu inisialisasi model, tetapi BUKAN model kondisi jalan Indonesia
+yang sudah selesai dilatih. Prediksi operasional memerlukan checkpoint APRJ yang
+dihasilkan dari data dan label survei relevan.
 
-BATASAN PENTING
----------------
-- ImageNet pretrained bukan model yang sudah memahami standar kondisi jalan Indonesia.
-- Bobot awal memberi representasi visual umum; performa tugas APRJ bergantung pada
-  dataset lokal, label yang konsisten, representativitas foto, dan validasi.
-- Estimasi lebar dari satu foto bukan pengukuran resmi tanpa kalibrasi kamera,
-  geometri, skala, dan validasi lapangan.
-- Tidak ada foto pengguna yang disertakan dalam bobot ImageNet.
+FILE MODEL
+----------
+1. enterprise\pretrained\resnet18-f37072fd.pth
+   Bobot dasar ImageNet untuk memulai training.
+2. survey_ai\models\survey_multi_task_model.pth
+   Checkpoint APRJ hasil training lokal; digunakan untuk inferensi.
 
-PROSES BUILD
-------------
-1. requirements.txt memasang torch dan torchvision yang kompatibel.
-2. build_portable.bat menjalankan prepare_pretrained_model.py.
-3. Script mengambil bobot resmi ResNet18_Weights.IMAGENET1K_V1 saat build pertama
-   dan menyimpannya ke enterprise\pretrained\resnet18-f37072fd.pth.
-4. PyInstaller memasukkan folder pretrained ke dist\APRJ_Next\pretrained.
-5. Aplikasi memuat bobot dari disk lokal; tidak ada unduhan model pada startup.
-6. File bobot dibuat otomatis dan tidak harus disimpan di Git. Simpan salinan lokal
-   bila ingin build ulang secara offline.
+Jangan mengganti nama bobot pretrained menjadi nama checkpoint survei. Itu tidak
+melakukan training dan dapat menyebabkan checkpoint gagal dimuat.
 
-TROUBLESHOOTING
----------------
-- Gagal mengunduh: periksa internet, proxy, firewall, ruang disk, dan versi torchvision.
-- Bobot tidak ditemukan: jalankan prepare_pretrained_model.py lalu ulangi build.
-- Arsitektur/checkpoint tidak cocok: gunakan "Latih ulang dari awal" untuk membuat
-  checkpoint ResNet-18 baru. Checkpoint lama format sebelumnya tetap dikenali sebagai
-  legacy_cnn saat inferensi dan saat mode melanjutkan training.
-- CUDA tidak tersedia: gunakan CPU atau perangkat Otomatis; bobot pretrained tidak
-  mensyaratkan GPU.
-- Jangan menghapus checkpoint model aktif kecuali sudah ada salinan cadangan.
+BUILD PORTABLE
+--------------
+1. Pasang requirements.txt dan requirements-build.txt.
+2. Jalankan prepare_pretrained_model.py untuk menyiapkan bobot dasar.
+3. Jalankan build_portable.bat dari folder enterprise.
+4. Pastikan folder pretrained ikut dibundel dalam dist\APRJ_Next.
+5. Salin seluruh folder dist\APRJ_Next saat memindahkan aplikasi, bukan hanya EXE.
+
+Batasan konektivitas: penyiapan bobot awal memerlukan internet bila file belum ada.
+Pemakaian bobot yang sudah dibundel tidak memerlukan unduhan model saat startup.
+Peta pada Integrasi Online dan sinkronisasi PostgreSQL tetap memerlukan koneksi
+internet/jaringan sesuai fitur yang dipakai.
+
+PENGATURAN POP-UP PREDIKSI
+--------------------------
+Pada toolbar Survei Jalan tersedia tombol POP-UP AI:
+- ON: prediksi AI menampilkan dialog konfirmasi sebelum saran diterapkan ke form.
+- OFF: dialog konfirmasi penerapan prediksi dilewati; saran diterapkan langsung
+  ke form ketika MODE AI aktif.
+Preferensi ON/OFF disimpan pada konfigurasi sesi. Pada mode OFF, hasil tetap
+harus ditinjau petugas dan disimpan secara manual. Popup kesalahan/diagnostik
+tidak dimatikan oleh pengaturan ini.
+
+BATASAN DAN VALIDASI
+--------------------
+- Kinerja tergantung kualitas, jumlah, keseimbangan, dan representativitas data.
+- Dataset perlu mencakup variasi ruas, kamera, pencahayaan, cuaca, perkerasan,
+  serta tingkat kerusakan; gunakan pemisahan data validasi/uji.
+- Estimasi lebar dari foto bukan pengukuran resmi tanpa kalibrasi, skala, geometri,
+  dan validasi lapangan.
+- Keyakinan model bukan jaminan kebenaran; periksa prediksi sebelum keputusan.
+- Jangan menghapus checkpoint aktif tanpa cadangan.
+
+PEMECAHAN MASALAH
+-----------------
+- Bobot dasar tidak ditemukan: jalankan prepare_pretrained_model.py.
+- Unduhan gagal: periksa internet, proxy, firewall, ruang disk, dan torchvision.
+- Checkpoint APRJ belum ada: impor dataset berlabel yang valid lalu jalankan training.
+- Checkpoint tidak cocok: periksa log sebelum mengganti/menghapus file model.
+- GPU tidak tersedia: gunakan CPU; proses mungkin lebih lambat.
