@@ -4,8 +4,11 @@ Modul Core: Konfigurasi Global, Konstanta, Path Portabel, dan Sistem Logging.
 Bertanggung jawab atas struktur direktori dan konfigurasi dasar aplikasi APRJ & PKRMS.
 """
 
+import json
 import logging
+import shutil
 import sys
+from datetime import datetime
 from pathlib import Path
 
 APP_NAME = "APRJ_Next"
@@ -52,6 +55,45 @@ def log_application_error(context, error_type, error, error_traceback):
         logger.error("%s: %s", context, error, exc_info=(error_type, error, error_traceback))
     except OSError as log_error:
         sys.stderr.write(f"{context}: {error}\nGagal menulis log: {log_error}\n")
+
+
+def load_record_manifest(path):
+    """Baca manifest JSON berisi daftar record dan kembalikan (records, peringatan).
+
+    File yang tidak terbaca tidak dibuang diam-diam: salinannya disimpan sebagai
+    ``<nama>.corrupt-<waktu>`` sebelum daftar kosong dikembalikan, sehingga simpan
+    berikutnya tidak menghapus satu-satunya salinan data asli.
+    """
+    path = Path(path)
+    if not path.exists():
+        return [], None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, list):
+            raise ValueError("isi manifest bukan daftar record")
+    except (OSError, ValueError) as error:
+        backup = path.with_name(f"{path.name}.corrupt-{datetime.now():%Y%m%d-%H%M%S}")
+        try:
+            shutil.copy2(path, backup)
+            saved = f"Salinan file asli disimpan di: {backup}"
+        except OSError:
+            saved = "Salinan file asli GAGAL dibuat; jangan simpan dataset sebelum file diperiksa."
+        return [], f"Manifest dataset tidak dapat dibaca ({error}). {saved}"
+    records = [record for record in data if isinstance(record, dict)]
+    skipped = len(data) - len(records)
+    warning = f"{skipped} entri manifest bukan record dan dilewati." if skipped else None
+    return records, warning
+
+
+def save_record_manifest(path, records):
+    """Simpan manifest secara atomik; versi sebelumnya disimpan sebagai ``<nama>.bak``."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8")
+    if path.is_file():
+        shutil.copy2(path, path.with_name(path.name + ".bak"))
+    temporary.replace(path)
 
 
 def initialize_portable_dirs():

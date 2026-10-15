@@ -41,7 +41,7 @@ def audit_dataset():
 
 def normalize_condition(value):
     """Normalisasi label kondisi tanpa mengubah frasa negatif menjadi label positif."""
-    text = re.sub(r"\\s+", " ", str(value or "").strip().lower())
+    text = re.sub(r"\s+", " ", str(value or "").strip().lower())
     text = text.replace("_", " ").replace("-", " ")
     if not text:
         return None

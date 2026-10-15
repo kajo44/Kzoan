@@ -24,6 +24,22 @@ class NormalizeConditionTests(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertIsNone(normalize_condition(source))
 
+    def test_extra_whitespace_is_collapsed(self):
+        cases = {
+            "rusak  berat": "rusak_berat",
+            "rusak\tringan": "rusak_ringan",
+            "  rusak   sedang\n": "rusak_sedang",
+            "kondisi   baik": "baik",
+        }
+        for source, expected in cases.items():
+            with self.subTest(source=source):
+                self.assertEqual(normalize_condition(source), expected)
+
+    def test_negation_with_extra_whitespace_is_still_rejected(self):
+        for source in ("tidak   baik", "belum\trusak berat"):
+            with self.subTest(source=source):
+                self.assertIsNone(normalize_condition(source))
+
     def test_unknown_values_remain_unclassified(self):
         for source in ("", None, "perlu survei ulang", "rusak tidak diketahui"):
             with self.subTest(source=source):

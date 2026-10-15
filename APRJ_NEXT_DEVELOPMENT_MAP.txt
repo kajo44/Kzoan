@@ -532,3 +532,40 @@ HASIL VALIDASI REKONSTRUKSI ENTERPRISE — 2026-10-12
   requirements, dokumentasi, dan tes; tidak ditemukan artefak build/cache
   atau dataset runtime yang perlu dihapus. Folder tetap datar agar impor dan
   konfigurasi PyInstaller yang ada tidak rusak.
+
+
+================================================================
+CATATAN PERUBAHAN — 2026-10-16 (hasil evaluasi branch)
+================================================================
+Tanggal: 2026-10-16
+Checkpoint: 0/2 (baseline dan penyimpanan lokal) — perbaikan dua temuan evaluasi
+Masalah/tujuan:
+- Normalisasi label kondisi menolak input valid dengan spasi ganda/tab karena
+  regex memakai r"\\s+" (backslash literal), sehingga "rusak  berat" menjadi None.
+- Manifest dataset AI (labels.json) yang rusak dibaca sebagai daftar kosong tanpa
+  pemberitahuan; simpan berikutnya menimpa file asli dengan daftar kosong.
+File yang diperiksa:
+- enterprise/aprj_pkrms.py, enterprise/aprj_core.py, enterprise/aprj_ui.py
+File yang diubah:
+- enterprise/aprj_pkrms.py (regex r"\s+")
+- enterprise/aprj_core.py (load_record_manifest, save_record_manifest)
+- enterprise/aprj_ui.py (load/save_training_manifest memakai fungsi di atas;
+  peringatan ke pengguna saat manifest tidak terbaca)
+- enterprise/tests/test_pkrms.py (tes spasi ganda/tab dan negasi)
+- enterprise/tests/test_manifest.py (baru)
+Perubahan:
+- Manifest yang rusak/bukan daftar disalin ke labels.json.corrupt-<waktu> sebelum
+  daftar kosong dikembalikan; pengguna diberi peringatan dan kejadian dicatat ke log.
+- Setiap simpan membuat labels.json.bak dari versi sebelumnya; penulisan tetap atomik.
+- Entri manifest yang bukan record dilaporkan jumlahnya, tidak dibuang diam-diam.
+Tes yang dijalankan: compileall; unittest test_manifest, test_pkrms,
+  test_aprj_map_matching (18 tes).
+Hasil tes: LULUS (18/18) pada lingkungan Linux, Python 3.13.
+Tidak dapat dijalankan di lingkungan ini: test_exif_fallback dan test_geospasial
+  (piexif tidak terpasang, PyPI tidak terjangkau) dan impor aprj_ui (tkinter tidak
+  tersedia). Perubahan di aprj_ui.py hanya diperiksa lewat kompilasi sintaks;
+  tampilan peringatan pada GUI belum diuji.
+Risiko/regresi yang masih terbuka: temuan evaluasi lain (sinkronisasi PostgreSQL
+  di UI thread dan tanpa unique index, model AI dimuat ulang per foto, koneksi
+  SQLite tidak ditutup, foto dilewati diam-diam saat training) belum dikerjakan.
+Status: LULUS untuk tes unit yang disebut; GUI BELUM DIUJI.

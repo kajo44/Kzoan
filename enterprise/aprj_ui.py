@@ -36,6 +36,7 @@ from aprj_core import (
     APP_NAME, APP_ROOT, APP_LOGS, APP_ERROR_LOG, SURVEY_AI_ROOT,
     SURVEY_AI_DATASET, SURVEY_AI_IMAGES, SURVEY_AI_MANIFEST, SURVEY_AI_RUNS,
     SURVEY_AI_MODELS, SURVEY_AI_CACHE, SURVEY_DB_PATH,
+    load_record_manifest, save_record_manifest,
 )
 SURVEY_AI_MODEL = SURVEY_AI_MODELS / "survey_multi_task_model.pth"
 
@@ -1747,19 +1748,17 @@ else map.setView([-0.5, 101.5], 7);
             messagebox.showerror("Google Colab", str(error), parent=self.root)
 
     def load_training_manifest(self):
-        if not SURVEY_AI_MANIFEST.exists():
-            return []
-        try:
-            data = json.loads(SURVEY_AI_MANIFEST.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return []
-        return [record for record in data if isinstance(record, dict)]
+        records, warning = load_record_manifest(SURVEY_AI_MANIFEST)
+        if warning:
+            log_application_error("Memuat manifest dataset AI", RuntimeError, RuntimeError(warning), None)
+            self.root.after(
+                500,
+                lambda: messagebox.showwarning("Manifest Dataset AI", warning, parent=self.root),
+            )
+        return records
 
     def save_training_manifest(self):
-        SURVEY_AI_DATASET.mkdir(parents=True, exist_ok=True)
-        temporary = SURVEY_AI_MANIFEST.with_suffix(".json.tmp")
-        temporary.write_text(json.dumps(self.training_records, ensure_ascii=False, indent=2), encoding="utf-8")
-        temporary.replace(SURVEY_AI_MANIFEST)
+        save_record_manifest(SURVEY_AI_MANIFEST, self.training_records)
 
     def build_ai_tab(self):
         self.ai_tab.columnconfigure(0, weight=1)
