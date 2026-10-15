@@ -2301,7 +2301,19 @@ else map.setView([-0.5, 101.5], 7);
         if not ai_model.TORCH_AVAILABLE:
             message = "PyTorch belum tersedia. Training dan inferensi tidak dapat dijalankan."
         elif not SURVEY_AI_MODEL.is_file():
-            message = f"Checkpoint model terlatih belum ditemukan:\n{SURVEY_AI_MODEL}"
+            message = (
+                "Checkpoint model survei APRJ belum tersedia.\n\n"
+                f"Lokasi yang diharapkan:\n{SURVEY_AI_MODEL}\n\n"
+                "Langkah berikutnya:\n"
+                "1. Pastikan dataset foto dan label survei sudah diimpor.\n"
+                "2. Jalankan Validasi Dataset dan perbaiki record yang tidak valid.\n"
+                "3. Pilih 'Latih ulang dari awal' pada mode training.\n"
+                "4. Klik 'Mulai Training' dan tunggu sampai selesai.\n"
+                "5. Periksa kesiapan model kembali.\n\n"
+                "Catatan: bobot pretrained ResNet-18 adalah model dasar, bukan "
+                "checkpoint survei APRJ. Jangan mengganti nama file pretrained "
+                "menjadi survey_multi_task_model.pth."
+            )
         else:
             try:
                 _, checkpoint, device = training_engine.load_model(
