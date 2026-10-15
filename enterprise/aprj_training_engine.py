@@ -2,9 +2,11 @@
 """Training dan inferensi lokal untuk APRJ. Tidak menghasilkan label palsu."""
 from __future__ import annotations
 
+import json
 import math
 import random
 import shutil
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -56,6 +58,22 @@ def _image_tensor(path, image_size):
     mean = torch.tensor([0.485, 0.456, 0.406], dtype=torch.float32).view(3, 1, 1)
     std = torch.tensor([0.229, 0.224, 0.225], dtype=torch.float32).view(3, 1, 1)
     return (pixels - mean) / std
+
+
+def _collect_batch(batch, image_size, skipped):
+    """Muat tensor foto satu batch; foto yang gagal dibaca dicatat di ``skipped``.
+
+    ``skipped`` memetakan path foto ke pesan error. Foto bermasalah tidak boleh
+    hilang diam-diam dari training tanpa dilaporkan ke pengguna.
+    """
+    images, labels = [], []
+    for record in batch:
+        try:
+            images.append(_image_tensor(record["path"], image_size))
+            labels.append(record["labels"])
+        except Exception as error:
+            skipped.setdefault(record["path"], f"{type(error).__name__}: {error}")
+    return images, labels
 
 
 def _numeric(value):
@@ -183,7 +201,8 @@ def train_model(records, task_options, width_fields, image_size, checkpoint_path
     best_loss = float("inf")
     best_validation_loss = float("inf")
     best_state = None
-    width_ranges = {field: (0.0, 30.0) for field in width_fields}
+    skipped_images = {}
+    announced_skipped = 0
 
     def run_epoch(items, training_mode):
         model.train(training_mode)
@@ -198,13 +217,7 @@ def train_model(records, task_options, width_fields, image_size, checkpoint_path
                 if cancel_event is not None and cancel_event.is_set():
                     raise InterruptedError("Training dibatalkan pengguna.")
                 batch = random_items[offset:offset + batch_size]
-                images, batch_labels = [], []
-                for record in batch:
-                    try:
-                        images.append(_image_tensor(record["path"], image_size))
-                        batch_labels.append(record["labels"])
-                    except Exception:
-                        continue
+                images, batch_labels = _collect_batch(batch, image_size, skipped_images)
                 if not images:
                     continue
                 x = torch.stack(images).to(device)
@@ -277,6 +290,12 @@ def train_model(records, task_options, width_fields, image_size, checkpoint_path
                 f"Epoch {epoch}/{epochs} | loss train={train_loss:.4f}"
                 + (f" | loss validasi={val_loss:.4f}" if val_loss is not None else " | validasi tidak tersedia")
             )
+            if len(skipped_images) > announced_skipped:
+                announced_skipped = len(skipped_images)
+                progress_callback(
+                    f"Peringatan: {announced_skipped} foto tidak dapat dibaca dan dilewati "
+                    "(lihat training_summary.json)."
+                )
 
     if best_state is None:
         raise RuntimeError("Training tidak menghasilkan checkpoint yang valid.")
@@ -320,9 +339,14 @@ def train_model(records, task_options, width_fields, image_size, checkpoint_path
         "elapsed_seconds": round(time.time() - started, 2),
         "device": str(device),
         "history": history,
+        "skipped_images_count": len(skipped_images),
+        "skipped_images": [
+            {"path": path, "error": error}
+            for path, error in list(skipped_images.items())[:50]
+        ],
     }
     (run_dir / "training_summary.json").write_text(
-        __import__("json").dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
+        json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     return summary
 
@@ -356,10 +380,42 @@ def load_model(checkpoint_path, device_name="Otomatis"):
     return model, checkpoint, device
 
 
+_MODEL_CACHE = {}
+_MODEL_CACHE_LOCK = threading.Lock()
+
+
+def clear_model_cache():
+    with _MODEL_CACHE_LOCK:
+        _MODEL_CACHE.clear()
+
+
+def get_cached_model(checkpoint_path, device_name="Otomatis"):
+    """Kembalikan (model, checkpoint, device); checkpoint tidak dibaca ulang per foto.
+
+    Cache hanya menyimpan satu model dan otomatis tidak berlaku bila file checkpoint
+    berubah (waktu ubah atau ukuran), misalnya setelah training baru.
+    """
+    path = Path(checkpoint_path)
+    try:
+        info = path.stat()
+    except OSError:
+        return load_model(checkpoint_path, device_name)  # memberi pesan error yang jelas
+    key = (str(path.resolve()), info.st_mtime_ns, info.st_size, device_name)
+    with _MODEL_CACHE_LOCK:
+        cached = _MODEL_CACHE.get(key)
+    if cached is not None:
+        return cached
+    loaded = load_model(checkpoint_path, device_name)
+    with _MODEL_CACHE_LOCK:
+        _MODEL_CACHE.clear()
+        _MODEL_CACHE[key] = loaded
+    return loaded
+
+
 def predict_image(image_path, checkpoint_path, device_name="Otomatis"):
     """Prediksi kelas dan confidence untuk satu foto; lebar adalah estimasi kasar."""
     _require_torch()
-    model, checkpoint, device = load_model(checkpoint_path, device_name)
+    model, checkpoint, device = get_cached_model(checkpoint_path, device_name)
     image_size = int(checkpoint.get("image_size", 224))
     x = _image_tensor(image_path, image_size).unsqueeze(0).to(device)
     with torch.no_grad():
