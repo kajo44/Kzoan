@@ -1,0 +1,339 @@
+PEMETAAN APLIKASI APRJ NEXT
+============================
+
+IDENTITAS
+---------
+Nama aplikasi : APRJ Next
+Repository    : https://github.com/kajo44/Kzoan
+Branch        : crg_aprj
+Folder sumber : enterprise
+Entry point   : aprj_main.py
+Antarmuka     : aprj_ui.py
+Target        : Windows 10/11 x64, Python 3.11 x64
+Paket         : PyInstaller ONEDIR (seluruh folder hasil build)
+
+TUJUAN DOKUMEN
+--------------
+Dokumen ini memetakan cara kerja aplikasi, hubungan antarmodul, daftar fitur,
+alur masukan-keluaran, lokasi berkas, serta pemeriksaan sebelum penggunaan.
+Ini adalah peta fungsional/teknis; bukan bukti bahwa semua fitur telah diuji
+pada komputer pengguna atau telah memenuhi standar resmi tertentu.
+
+1. ARSITEKTUR APLIKASI
+----------------------
+
+Pengguna
+  |
+  v
+aprj_main.py  -> memulai aplikasi
+  |
+  v
+aprj_ui.py    -> antarmuka Tkinter/ttk Notebook
+  |
+  +-- Survei Jalan
+  |     |-- memuat foto dan menampilkan foto aktif
+  |     |-- formulir penilaian kondisi jalan
+  |     |-- MODE AI ON/OFF dan POP-UP AI ON/OFF
+  |     |-- menyimpan catatan dan memulihkan sesi
+  |     +-- ekspor catatan survei
+  |
+  +-- Rekayasa AI
+  |     |-- impor dan validasi dataset berlabel
+  |     |-- manifest path foto dan label
+  |     |-- training baru / lanjut training
+  |     |-- cek checkpoint dan inferensi
+  |     |-- CLEAN cache/berkas sementara yang dikenal
+  |     +-- ekspor gabungan hasil proses ke Excel
+  |
+  +-- Map Matching
+  |     |-- foto ber-GPS + geometri ruas
+  |     |-- pencocokan kandidat ruas dan STA
+  |     |-- parameter jarak, arah, waktu, kecepatan
+  |     |-- opsi HMM/Viterbi
+  |     +-- ekspor CSV/KML/KMZ dan salin foto terpilih
+  |
+  +-- Integrasi Online
+  |     |-- visualisasi hasil aplikasi/data impor pada peta
+  |     |-- skrip Google Colab jika dipilih
+  |     +-- sinkronisasi PostgreSQL jika dikonfigurasi
+  |
+  +-- Metadata Foto
+        |-- salin metadata EXIF
+        |-- ekspor EXIF/GPS ke CSV/Excel
+        +-- tulis koordinat GPS dari CSV/Excel ke JPG/JPEG
+
+MODUL INTI
+----------
+aprj_main.py              Entry point aplikasi.
+aprj_ui.py                Antarmuka dan alur pengguna.
+aprj_core.py              Konstanta, path aplikasi, dan logging error.
+aprj_database.py          Sinkronisasi PostgreSQL opsional.
+aprj_geospasial.py        Indeks GPS, geometri ruas, STA, hasil geospasial.
+aprj_map_matching.py      Pencocokan foto ke ruas/STA.
+aprj_metadata.py          Antarmuka pengelolaan metadata foto.
+aprj_ai_model.py          Arsitektur model multi-task AI.
+aprj_training_engine.py   Training, checkpoint, dan inferensi.
+requirements.txt          Dependensi runtime.
+requirements-build.txt    Dependensi build.
+build_portable.bat        Build portable Windows.
+prepare_ai_training.bat   Persiapan lingkungan training AI.
+prepare_pretrained_model.py  Persiapan bobot dasar ResNet-18.
+
+2. ALUR KERJA DATA
+------------------
+
+A. Survei manual
+1. Petugas memilih foto/folder.
+2. Foto ditampilkan sebagai konteks penilaian.
+3. Petugas mengisi atau memeriksa atribut kondisi jalan.
+4. Catatan disimpan pada penyimpanan lokal SQLite dan sesi dapat dipulihkan.
+5. Catatan dapat diekspor atau dijadikan sumber dataset berlabel.
+
+B. Survei berbantuan AI
+1. Siapkan foto dan label survei yang relevan.
+2. Impor dan validasi dataset melalui tab Rekayasa AI.
+3. Latih model lokal menggunakan PyTorch.
+4. Bobot ResNet-18 ImageNet merupakan titik awal, bukan model jalan yang siap pakai.
+5. Checkpoint APRJ hasil training digunakan untuk inferensi.
+6. MODE AI menentukan apakah prediksi otomatis dijalankan.
+7. POP-UP AI ON meminta persetujuan sebelum saran diterapkan. OFF melewati
+   dialog konfirmasi dan menerapkan saran langsung ke formulir.
+8. Petugas tetap memeriksa hasil dan menyimpan penilaian final secara manual.
+
+C. Map Matching dan STA
+1. Pilih folder foto dan geometri garis ruas.
+2. Baca GPS, timestamp, heading, dan metadata lain yang tersedia.
+3. Bentuk kandidat ruas berdasarkan geometri dan parameter pencocokan.
+4. Bila diaktifkan, HMM/Viterbi memilih urutan kandidat yang lebih konsisten
+   secara lokal; jika tidak, sistem memakai baseline kandidat lokal.
+5. Hasil memuat foto cocok/tidak cocok, diagnostik, ruas, STA, dan jarak.
+6. Ekspor CSV/KML/KMZ atau salin foto terpilih ke folder keluaran.
+7. Verifikasi kandidat pada peta dan foto sumber sebelum penggunaan resmi.
+
+D. Metadata
+1. Pilih folder foto atau tabel koordinat.
+2. Baca metadata EXIF/GPS, salin metadata, atau tulis koordinat GPS sesuai fungsi.
+3. Ekspor hasil ke CSV/Excel bila dipilih.
+4. Cadangkan foto sebelum operasi yang menimpa atau mengubah metadata.
+
+E. Visualisasi dan integrasi online
+1. Pilih hasil aplikasi atau impor data spasial.
+2. Aplikasi menyiapkan visualisasi lokal yang dapat dibuka di browser.
+3. Basemap dapat memerlukan internet.
+4. PostgreSQL adalah layanan opsional; SQLite tetap penyimpanan lokal utama.
+5. Periksa fungsi yang dipilih sebelum menyinkronkan atau menampilkan data lokasi.
+
+3. DAFTAR FITUR
+----------------
+
+3.1 SURVEI JALAN
+- Memuat dan berpindah antar foto.
+- Menampilkan foto sebagai referensi penilaian.
+- Mengisi, meninjau, dan menyimpan catatan survei.
+- Menyimpan/memulihkan sesi.
+- MODE AI ON/OFF untuk mengendalikan prediksi otomatis.
+- POP-UP AI ON/OFF untuk memilih konfirmasi atau penerapan saran langsung.
+- Meninjau saran AI sebelum menyimpan penilaian final.
+- Mengekspor catatan survei sesuai fungsi yang tersedia.
+
+3.2 REKAYASA AI
+- Mengimpor data label dari Excel sesuai format yang dikenali aplikasi.
+- Menyimpan manifest label dan referensi path foto sumber.
+- Memvalidasi label serta foto yang hilang/tidak tersedia.
+- Menjaga foto sumber tidak disalin atau dipindahkan secara diam-diam saat impor.
+- Memperbaiki path dataset melalui fungsi relokasi jika diperlukan.
+- Training baru atau melanjutkan training dari checkpoint yang sesuai.
+- Mengatur parameter training dan perangkat dari kontrol aplikasi.
+- Memeriksa kesiapan checkpoint dan menjalankan inferensi.
+- Mencatat status/error training.
+- CLEAN cache/berkas sementara yang dikenali.
+- Ekspor hasil proses gabungan ke workbook Excel.
+
+Batasan AI:
+Bobot ImageNet bukan model kondisi jalan siap pakai. Checkpoint survei perlu
+dilatih memakai label relevan dan dievaluasi pada data terpisah. Jumlah data
+minimum untuk memulai training bukan jaminan akurasi. Prediksi adalah saran,
+bukan keputusan resmi otomatis.
+
+3.3 MAP MATCHING
+- Memilih folder foto secara rekursif.
+- Memilih geometri ruas KML/KMZ/GeoJSON/JSON yang didukung.
+- Membaca GPS, waktu, dan heading EXIF bila tersedia.
+- Membentuk kandidat foto terhadap ruas dan STA.
+- Mengatur interval STA, radius, batas kecepatan, toleransi arah, dan jendela waktu.
+- Menggunakan opsi HMM/Viterbi untuk konsistensi urutan kandidat.
+- Menggunakan baseline lokal bila HMM/Viterbi tidak dipilih.
+- Menyimpan diagnostik foto yang tidak cocok atau tidak memiliki GPS.
+- Mengekspor CSV lengkap dan STA KML.
+- Membuat KMZ titik foto GPS.
+- Menyalin foto terpilih tanpa memindahkan foto sumber.
+
+Batasan Map Matching:
+- Foto tanpa GPS tidak dapat dicocokkan berdasarkan posisi.
+- Heading kamera tidak selalu sama dengan arah kendaraan.
+- GPS, timestamp, arah digitasi, dan kualitas geometri memengaruhi hasil.
+- HMM/Viterbi memakai model transisi geometris; tanpa topologi jaringan, ini
+  bukan routing jaringan jalan penuh.
+- Skor algoritme bukan probabilitas akurasi terkalibrasi.
+- Hasil merupakan kandidat yang perlu diperiksa manusia.
+
+3.4 MODUL GEOSPASIAL JALAN
+- Membaca geometri ruas dari format yang didukung.
+- Membaca/mengindeks koordinat GPS foto.
+- Membentuk titik STA berdasarkan interval yang dipilih.
+- Mencari foto kandidat berdasarkan posisi dan parameter kerja.
+- Menyimpan hasil pekerjaan dan menyediakan ekspor geospasial.
+- Membantu pemeriksaan foto kandidat dan tinjauan AI bila tersedia.
+
+3.5 INTEGRASI ONLINE
+- Menampilkan hasil aplikasi pada peta.
+- Mengimpor data spasial untuk divisualisasikan.
+- Menampilkan layer ruas, titik foto, STA, dan atribut kondisi bila tersedia.
+- Menyiapkan skrip Google Colab jika fungsi dipilih.
+- Menguji koneksi dan menyinkronkan catatan ke PostgreSQL bila dikonfigurasi.
+
+Catatan online:
+Basemap dapat membutuhkan internet. PostgreSQL membutuhkan host, database,
+kredensial, jaringan, dan izin yang benar. Sinkronisasi harus diuji terpisah
+dan tidak menggantikan backup penyimpanan lokal.
+
+3.6 METADATA FOTO
+- Menyalin metadata EXIF antar-folder untuk foto yang cocok.
+- Mengekspor metadata EXIF/GPS ke CSV/Excel.
+- Menyertakan koordinat GPS desimal jika tersedia.
+- Mencatat kegagalan baca jika fungsi ekspor menyediakannya.
+- Menulis koordinat GPS dari tabel ke foto JPG/JPEG yang cocok.
+- Menyediakan opsi terkait penimpaan file pada operasi salin.
+
+Catatan metadata:
+Buat cadangan sebelum menimpa atau mengubah foto. Dukungan format/tag bergantung
+pada ExifTool, Pillow, dan fungsi yang digunakan.
+
+3.7 PENYIMPANAN DAN PEMELIHARAAN
+- SQLite sebagai penyimpanan survei lokal.
+- Konfigurasi dan pemulihan sesi.
+- Manifest dataset, checkpoint model, dan riwayat training.
+- Log error untuk diagnosis.
+- CLEAN untuk cache/berkas sementara yang dikenal.
+- Build portable ONEDIR untuk distribusi Windows.
+
+4. MASUKAN DAN KELUARAN
+-----------------------
+
+Masukan:
+- Foto JPG/JPEG/PNG/BMP/WEBP dan format lain yang didukung modul terkait.
+- Metadata EXIF/GPS pada foto.
+- Form penilaian manual.
+- Excel/CSV untuk label, data survei, atau koordinat sesuai fungsi.
+- Geometri jalan KML/KMZ/GeoJSON/JSON dengan garis yang didukung.
+- Konfigurasi PostgreSQL jika integrasi diaktifkan.
+
+Keluaran:
+- Database SQLite, file konfigurasi, dan sesi.
+- Manifest dataset dan checkpoint model AI.
+- Log aplikasi dan log training.
+- Workbook Excel hasil survei atau gabungan hasil proses.
+- CSV hasil Map Matching/geospasial.
+- KML titik STA dan KMZ foto GPS.
+- Salinan foto terpilih di folder output jika diminta.
+- CSV/Excel metadata EXIF/GPS.
+- HTML visualisasi lokal untuk browser.
+- Sinkronisasi PostgreSQL jika dikonfigurasi dan berhasil.
+
+Nama kolom dan struktur ekspor berbeda menurut modul. Cocokkan hasil dengan
+template/ketentuan instansi yang berlaku; jangan menganggap ekspor generik
+otomatis memenuhi format resmi PKRMS.
+
+5. LOKASI BERKAS PENTING
+------------------------
+
+enterprise\aprj_main.py
+  Entry point aplikasi.
+enterprise\aprj_ui.py
+  Antarmuka dan alur pengguna.
+enterprise\requirements.txt
+  Dependensi runtime.
+enterprise\requirements-build.txt
+  Dependensi build.
+enterprise\build_portable.bat
+  Script build PyInstaller ONEDIR.
+enterprise\prepare_ai_training.bat
+  Script persiapan AI.
+enterprise\prepare_pretrained_model.py
+  Persiapan bobot dasar jika belum tersedia.
+enterprise\pretrained\resnet18-f37072fd.pth
+  Bobot dasar ImageNet, bukan checkpoint survei APRJ.
+enterprise\data\survey.sqlite3
+  Database survei lokal pada APP_ROOT.
+enterprise\survey_ai\dataset\labels.json
+  Manifest label/referensi dataset AI.
+enterprise\survey_ai\models\survey_multi_task_model.pth
+  Checkpoint APRJ hasil training jika sudah dibuat.
+enterprise\survey_ai\training_runs\
+  Riwayat training bila dihasilkan.
+enterprise\logs\application_errors.log
+  Log error aplikasi.
+
+Dalam paket frozen, APP_ROOT relatif ke lokasi executable. Periksa struktur
+folder dari build yang benar-benar dipakai karena data runtime dapat berada
+relatif ke folder aplikasi portable.
+
+6. BUILD DAN VALIDASI
+---------------------
+
+Alur build yang diharapkan:
+1. Checkout branch crg_aprj.
+2. Gunakan Python 3.11 x64.
+3. Pasang dependensi dari requirements-build.txt.
+4. Pastikan ExifTool berada di lokasi yang dicari build script.
+5. Siapkan bobot pretrained jika dibutuhkan.
+6. Jalankan build_portable.bat.
+7. Periksa folder dist\APRJ_Next.
+8. Uji seluruh folder ONEDIR pada komputer pembangun dan komputer Windows lain.
+
+Pemeriksaan minimum:
+- Aplikasi mulai dan menutup normal.
+- Foto dibuka dan formulir disimpan/dipulihkan.
+- MODE AI dan POP-UP AI berfungsi dalam semua kombinasi.
+- Popup error tetap terlihat saat terjadi kegagalan.
+- Workbook ekspor bisa dibuka dan jumlah datanya cocok.
+- Map Matching diuji pada foto/ruas dengan posisi yang diketahui.
+- KML/KMZ/CSV dibuka pada GIS atau pembaca yang sesuai.
+- Metadata diuji dengan salinan foto.
+- Training/inferensi diuji pada dataset yang valid.
+- CLEAN tidak menghapus database, foto sumber, dataset, model, atau hasil penting.
+- Integrasi online diuji terpisah.
+
+Perintah pemeriksaan source:
+  python -m compileall -q .
+  python -m unittest discover -s tests -v
+
+Tes otomatis tidak membuktikan akurasi model, seluruh alur GUI, keberhasilan
+build Windows, atau kesiapan operasional lapangan.
+
+7. PRIVASI DAN INTEGRITAS DATA
+------------------------------
+
+- Cadangkan database, manifest, checkpoint, dan hasil ekspor sebelum pemeliharaan.
+- Jangan menaruh kata sandi database dalam source code atau dokumentasi publik.
+- Foto sumber tidak otomatis disalin ketika direferensikan oleh dataset AI.
+- Jika path foto berubah, validasi atau relokasi sebelum training.
+- Jangan menganggap bobot pretrained sebagai model kondisi jalan final.
+- Tinjau prediksi AI dan hasil pencocokan geospasial sebelum keputusan teknis.
+- Visualisasi dapat menampilkan koordinat dan atribut lokasi.
+- Pastikan izin penggunaan foto dan data telah tersedia.
+
+8. STATUS DAN KRITERIA SELESAI
+------------------------------
+
+Bedakan status berikut:
+1. ADA PADA SOURCE: kode/fungsi terkait ditemukan di repository.
+2. TES OTOMATIS LULUS: ada hasil tes yang benar-benar dijalankan.
+3. TERUJI DI WINDOWS: GUI dan paket portable dieksekusi di Windows.
+4. TERVERIFIKASI OPERASIONAL: keluaran dibandingkan dengan data lapangan yang
+   diketahui benar dan prosedur pengguna divalidasi.
+
+Jangan menandai tahap 3 atau 4 selesai hanya berdasarkan source code atau
+pemeriksaan sintaks. Catat commit, lingkungan, data uji, hasil, dan error.
+Perbarui dokumen ini bila nama tab, path, format ekspor, dependency, algoritme,
+alur AI, atau cara build berubah.
