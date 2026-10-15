@@ -6,6 +6,7 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 
 torch>=2.5,<3
+torchvision>=0.20,<1
 Pillow>=10.0,<13
 openpyxl>=3.1,<4
 
