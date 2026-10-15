@@ -100,6 +100,7 @@ if exist "..\APRJ_PORTABLE_GUIDE.txt" copy /Y "..\APRJ_PORTABLE_GUIDE.txt" "dist
 if exist "README.md" copy /Y "README.md" "dist\APRJ_Next\PANDUAN_PENGGUNAAN.md" >nul
 if exist "PENGEMBANGAN_APRJ.txt" copy /Y "PENGEMBANGAN_APRJ.txt" "dist\APRJ_Next\PENGEMBANGAN_APRJ.txt" >nul
 if exist "MODEL_PRETRAINED.txt" copy /Y "MODEL_PRETRAINED.txt" "dist\APRJ_Next\MODEL_PRETRAINED.txt" >nul
+if exist "RIWAYAT_PERUBAHAN.txt" copy /Y "RIWAYAT_PERUBAHAN.txt" "dist\APRJ_Next\RIWAYAT_PERUBAHAN.txt" >nul
 
 echo.
 echo ============================================================
