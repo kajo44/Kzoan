@@ -4,7 +4,6 @@ from pathlib import Path
 import hashlib
 import sys
 
-EXPECTED_SHA256 = "f37072fd"
 OUTPUT = Path(__file__).resolve().parent / "pretrained" / "resnet18-f37072fd.pth"
 
 
