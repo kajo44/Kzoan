@@ -1856,18 +1856,18 @@ else map.setView([-0.5, 101.5], 7);
 
     def build_ai_tab(self):
         self.ai_tab.columnconfigure(0, weight=1)
-        self.ai_tab.rowconfigure(2, weight=1)
+        self.ai_tab.rowconfigure(3, weight=1)
         ttk.Label(self.ai_tab, text="Rekayasa & Pelatihan AI Survei Jalan", font=("Segoe UI", 15, "bold")).grid(row=0, column=0, sticky="w", pady=(0, 4))
         ttk.Label(self.ai_tab, text="Kelola dataset terkonfirmasi manusia, latih model multi-task AI, dan ekspor hasil proses lokal.").grid(row=1, column=0, sticky="w", pady=(0, 10))
 
         utility_frame = ttk.LabelFrame(self.ai_tab, text="Pemeliharaan dan Ekspor Hasil")
-        utility_frame.grid(row=1, column=0, sticky="ew", pady=(28, 6))
+        utility_frame.grid(row=2, column=0, sticky="ew", pady=5)
         ttk.Button(utility_frame, text="CLEAN — Bersihkan Cache", command=self.clean_temporary_files).pack(side="left", padx=6, pady=6)
         ttk.Button(utility_frame, text="Ekspor Hasil Proses (Excel)", command=self.export_processed_results).pack(side="left", padx=6, pady=6)
         ttk.Label(utility_frame, text="Ekspor mencakup catatan survei tersimpan, hasil Modul Geospasial Jalan, dan hasil Map Matching yang tersedia.").pack(side="left", padx=6, pady=6)
 
         dataset_frame = ttk.LabelFrame(self.ai_tab, text="Dataset Terkonfirmasi")
-        dataset_frame.grid(row=2, column=0, sticky="nsew", pady=5)
+        dataset_frame.grid(row=3, column=0, sticky="nsew", pady=5)
         dataset_frame.columnconfigure(0, weight=1)
         dataset_frame.rowconfigure(0, weight=1)
         
@@ -1900,7 +1900,7 @@ else map.setView([-0.5, 101.5], 7);
         self.relocate_dataset_button.pack(side="left", padx=3)
 
         training_frame = ttk.LabelFrame(self.ai_tab, text="Kontrol Training AI")
-        training_frame.grid(row=3, column=0, sticky="ew", pady=5)
+        training_frame.grid(row=4, column=0, sticky="ew", pady=5)
         
         ttk.Label(training_frame, text="Device:").grid(row=0, column=0, padx=5, pady=6)
         self.device_combo = ttk.Combobox(training_frame, textvariable=self.ai_device_var, values=("Otomatis", "CPU", "GPU (CUDA)"), state="readonly", width=12)
