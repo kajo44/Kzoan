@@ -305,11 +305,19 @@ class MapMatchingEngine:
         interval_m, radius_m = int(interval_m), float(radius_m)
         max_speed_kmh, heading_tolerance_deg = float(max_speed_kmh), float(heading_tolerance_deg)
         max_time_gap_s = float(max_time_gap_s)
-        if interval_m < 1: raise ValueError("Interval STA minimal 1 meter.")
-        if not 1 <= radius_m <= 5000: raise ValueError("Radius pencocokan harus 1–5000 meter.")
-        if not 1 <= max_speed_kmh <= 160: raise ValueError("Kecepatan maksimum harus 1–160 km/jam.")
-        if not 1 <= heading_tolerance_deg <= 180: raise ValueError("Toleransi arah harus 1–180 derajat.")
-        if not 1 <= max_time_gap_s <= 300: raise ValueError("Rentang waktu harus 1–300 detik.")
+        # Batasi nilai yang tidak valid secara matematis, bukan rentang maksimum arbitrer.
+        if interval_m < 1:
+            raise ValueError("Interval STA harus minimal 1 meter.")
+        if not all(math.isfinite(v) for v in (radius_m, max_speed_kmh, heading_tolerance_deg, max_time_gap_s)):
+            raise ValueError("Semua parameter numerik harus berupa angka hingga (finite).")
+        if radius_m <= 0:
+            raise ValueError("Radius pencocokan harus lebih besar dari 0 meter.")
+        if max_speed_kmh <= 0:
+            raise ValueError("Batas kecepatan harus lebih besar dari 0 km/jam.")
+        if heading_tolerance_deg < 0:
+            raise ValueError("Toleransi arah tidak boleh negatif.")
+        if max_time_gap_s <= 0:
+            raise ValueError("Jendela waktu harus lebih besar dari 0 detik.")
         roads = load_road_segments(road_file)
         segments, grid = self._prepare_segments(roads, progress)
         photos, scanned = self._index_photos(photo_root, progress, cancel_event)
