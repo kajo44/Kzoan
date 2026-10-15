@@ -28,17 +28,24 @@ def _require_torch():
         raise RuntimeError("PyTorch belum terpasang. Jalankan build_portable.bat atau instal PyTorch.")
 
 
-def _make_model(task_classes, width_count):
-    """Gunakan satu definisi arsitektur agar training dan inferensi kompatibel."""
+def _make_model(task_classes, width_count, architecture="resnet18", use_pretrained=False):
+    """Buat arsitektur yang sesuai checkpoint; bobot pretrained selalu dibaca lokal."""
     _require_torch()
-    from aprj_ai_model import SurveyMultiTaskNet, SURVEY_WIDTH_FIELDS as MODEL_WIDTH_FIELDS
-
+    from aprj_ai_model import (
+        LegacySurveyMultiTaskNet, SurveyMultiTaskNet,
+        SURVEY_WIDTH_FIELDS as MODEL_WIDTH_FIELDS, load_pretrained_state_dict,
+    )
     if int(width_count) != len(MODEL_WIDTH_FIELDS):
         raise ValueError(
             "Jumlah field lebar tidak cocok dengan arsitektur model utama "
             f"({width_count} diterima; {len(MODEL_WIDTH_FIELDS)} diperlukan)."
         )
-    return SurveyMultiTaskNet(task_classes)
+    if architecture == "legacy_cnn":
+        return LegacySurveyMultiTaskNet(task_classes)
+    if architecture != "resnet18":
+        raise ValueError(f"Arsitektur model tidak dikenal: {architecture}")
+    weights = load_pretrained_state_dict() if use_pretrained else None
+    return SurveyMultiTaskNet(task_classes, pretrained_state_dict=weights)
 
 
 def _image_tensor(path, image_size):
@@ -133,8 +140,8 @@ def train_model(records, task_options, width_fields, image_size, checkpoint_path
     else:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = _make_model(task_classes, len(width_fields)).to(device)
     existing_checkpoint = Path(checkpoint_path)
+    previous = None
     if training_mode == "Lanjutkan dari model aktif":
         if not existing_checkpoint.is_file():
             raise FileNotFoundError(
@@ -154,12 +161,21 @@ def train_model(records, task_options, width_fields, image_size, checkpoint_path
             )
         if previous.get("width_fields") != list(width_fields):
             raise ValueError("Daftar field lebar tidak kompatibel dengan model aktif.")
+        architecture = previous.get("architecture", "legacy_cnn")
+    elif training_mode == "Latih ulang dari awal":
+        architecture = "resnet18"
+    else:
+        raise ValueError(f"Mode training tidak dikenal: {training_mode}")
+
+    model = _make_model(
+        task_classes, len(width_fields), architecture=architecture,
+        use_pretrained=(training_mode == "Latih ulang dari awal" and architecture == "resnet18"),
+    ).to(device)
+    if previous is not None:
         try:
             model.load_state_dict(previous["state_dict"])
         except Exception as error:
             raise RuntimeError(f"Bobot model aktif tidak kompatibel: {error}") from error
-    elif training_mode != "Latih ulang dari awal":
-        raise ValueError(f"Mode training tidak dikenal: {training_mode}")
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.0001)
     run_dir = Path(run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -268,7 +284,8 @@ def train_model(records, task_options, width_fields, image_size, checkpoint_path
     checkpoint_path = Path(checkpoint_path)
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
     checkpoint = {
-        "format_version": 1,
+        "format_version": 2,
+        "architecture": architecture,
         "state_dict": model.state_dict(),
         "task_classes": task_classes,
         "width_fields": list(width_fields),
@@ -281,9 +298,9 @@ def train_model(records, task_options, width_fields, image_size, checkpoint_path
         "validation_samples": len(validation),
         "device": str(device),
         "model_note": (
-            "CNN lokal; bobot dilanjutkan dari checkpoint aktif (optimizer diinisialisasi ulang)."
-            if training_mode == "Lanjutkan dari model aktif"
-            else "CNN lokal yang diinisialisasi dari awal; bukan model pretrained."
+            "ResNet-18 pretrained ImageNet; kepala survei dilatih dari label dataset APRJ."
+            if architecture == "resnet18" and training_mode == "Latih ulang dari awal"
+            else "Checkpoint aktif dilanjutkan; optimizer diinisialisasi ulang."
         ),
         "training_mode": training_mode,
     }
@@ -331,7 +348,8 @@ def load_model(checkpoint_path, device_name="Otomatis"):
     width_fields = checkpoint.get("width_fields")
     if not isinstance(task_classes, dict) or not isinstance(width_fields, list):
         raise ValueError("Format checkpoint tidak dikenali; latih ulang model melalui APRJ.")
-    model = _make_model(task_classes, len(width_fields))
+    architecture = checkpoint.get("architecture", "legacy_cnn")
+    model = _make_model(task_classes, len(width_fields), architecture=architecture, use_pretrained=False)
     model.load_state_dict(checkpoint["state_dict"])
     model.to(device)
     model.eval()
