@@ -52,6 +52,19 @@ Daftar dependency Python langsung berada di `requirements.txt`; dependency untuk
 
 Build script menjalankan pemeriksaan sintaks dan `unittest` sebelum pemaketan PyInstaller. Tes otomatis hanya mencakup fungsi yang diuji; itu **bukan** pengganti pengujian GUI, uji portable di komputer lain, atau validasi akurasi.
 
+## 3A. Menyiapkan AI untuk training pertama
+
+Jalankan `prepare_ai_training.bat` dari folder `enterprise` untuk membuat/menggunakan
+`.venv`, memasang dependensi runtime, mengunduh dan memvalidasi bobot dasar ResNet-18,
+serta menyiapkan folder model. Panduan rinci tersedia di `PERSIAPAN_AI_SURVEI.txt`.
+
+Script ini tidak mengunduh checkpoint kondisi jalan yang sudah terlatih karena
+checkpoint seperti itu harus dihasilkan dari foto dan label survei APRJ yang valid.
+Setelah mengimpor dan memvalidasi dataset, pilih **Latih ulang dari awal** untuk
+training pertama. Checkpoint yang dipakai inferensi adalah
+`survey_ai\\models\\survey_multi_task_model.pth`; bobot ImageNet di folder
+`pretrained` merupakan file yang berbeda.
+
 ## 4. Alur penggunaan utama
 
 ### A. Survei Jalan
