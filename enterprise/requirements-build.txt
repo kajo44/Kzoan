@@ -1,3 +1,6 @@
-# Build-only dependency set for APRJ Next portable packaging.
+# APRJ Next - dependensi untuk pengembangan dan build portable ONEDIR.
+# Memasang semua dependensi runtime terlebih dahulu.
 -r requirements.txt
+
+# Pengemas aplikasi Windows; bukan dependensi runtime aplikasi yang sudah dibuild.
 PyInstaller>=6.10,<7
