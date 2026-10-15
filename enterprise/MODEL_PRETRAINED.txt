@@ -1,0 +1,38 @@
+APRJ NEXT — MODEL PRETRAINED
+============================
+TUJUAN
+------
+Aplikasi portable menyertakan bobot visual umum ResNet-18 dari ImageNet agar model
+tidak perlu mengunduh bobot saat dijalankan. Kepala model APRJ dilatih lebih lanjut
+menggunakan label dataset survei yang telah dikonfirmasi.
+
+BATASAN PENTING
+---------------
+- ImageNet pretrained bukan model yang sudah memahami standar kondisi jalan Indonesia.
+- Bobot awal memberi representasi visual umum; performa tugas APRJ bergantung pada
+  dataset lokal, label yang konsisten, representativitas foto, dan validasi.
+- Estimasi lebar dari satu foto bukan pengukuran resmi tanpa kalibrasi kamera,
+  geometri, skala, dan validasi lapangan.
+- Tidak ada foto pengguna yang disertakan dalam bobot ImageNet.
+
+PROSES BUILD
+------------
+1. requirements.txt memasang torch dan torchvision yang kompatibel.
+2. build_portable.bat menjalankan prepare_pretrained_model.py.
+3. Script mengambil bobot resmi ResNet18_Weights.IMAGENET1K_V1 saat build pertama
+   dan menyimpannya ke enterprise\pretrained\resnet18-f37072fd.pth.
+4. PyInstaller memasukkan folder pretrained ke dist\APRJ_Next\pretrained.
+5. Aplikasi memuat bobot dari disk lokal; tidak ada unduhan model pada startup.
+6. File bobot dibuat otomatis dan tidak harus disimpan di Git. Simpan salinan lokal
+   bila ingin build ulang secara offline.
+
+TROUBLESHOOTING
+---------------
+- Gagal mengunduh: periksa internet, proxy, firewall, ruang disk, dan versi torchvision.
+- Bobot tidak ditemukan: jalankan prepare_pretrained_model.py lalu ulangi build.
+- Arsitektur/checkpoint tidak cocok: gunakan "Latih ulang dari awal" untuk membuat
+  checkpoint ResNet-18 baru. Checkpoint lama format sebelumnya tetap dikenali sebagai
+  legacy_cnn saat inferensi dan saat mode melanjutkan training.
+- CUDA tidak tersedia: gunakan CPU atau perangkat Otomatis; bobot pretrained tidak
+  mensyaratkan GPU.
+- Jangan menghapus checkpoint model aktif kecuali sudah ada salinan cadangan.
