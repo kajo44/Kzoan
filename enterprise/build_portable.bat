@@ -61,7 +61,7 @@ if errorlevel 1 goto :fail
 
 echo.
 echo [3/5] Memeriksa sintaks seluruh modul dan tes...
-python -m compileall -q prepare_pretrained_model.py aprj_main.py aprj_ui.py aprj_core.py aprj_database.py aprj_ai_model.py aprj_pkrms.py aprj_training_engine.py aprj_geospasial.py aprj_metadata.py aprj_map_matching.py aprj_exif_fallback.py tests
+python -m compileall -q prepare_pretrained_model.py aprj_main.py aprj_ui.py aprj_core.py aprj_database.py aprj_ai_model.py aprj_pkrms.py aprj_training_engine.py aprj_geospasial.py aprj_metadata.py aprj_map_matching.py aprj_exif_fallback.py aprj_store.py tests
 if errorlevel 1 goto :fail
 
 echo.
@@ -91,8 +91,10 @@ python -m PyInstaller --noconfirm --clean --windowed --onedir ^
   --hidden-import aprj_metadata ^
   --hidden-import aprj_map_matching ^
   --hidden-import aprj_exif_fallback ^
+  --hidden-import aprj_store ^
   --hidden-import psycopg2 ^
   --hidden-import psycopg2._psycopg ^
+  --hidden-import psycopg2.extras ^
   aprj_main.py
 if errorlevel 1 goto :fail
 

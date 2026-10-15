@@ -32,6 +32,7 @@ import aprj_training_engine as training_engine
 from aprj_geospasial import GeospatialEngine, load_road_segments
 from aprj_metadata import PhotoMetadataTab
 from aprj_map_matching import MapMatchingEngine
+from aprj_store import SQLiteSurveyStore
 from aprj_core import (
     APP_NAME, APP_ROOT, APP_LOGS, APP_ERROR_LOG, SURVEY_AI_ROOT,
     SURVEY_AI_DATASET, SURVEY_AI_IMAGES, SURVEY_AI_MANIFEST, SURVEY_AI_RUNS,
@@ -88,50 +89,6 @@ SURVEY_AI_CONFIDENCE_OUTPUTS = tuple(f"ai_{task}_confidence" for task in SURVEY_
 SURVEY_AI_WIDTH_OUTPUTS = tuple(f"ai_{field}_m" for field in SURVEY_WIDTH_FIELDS)
 
 
-class SQLiteSurveyStore:
-    """Penyimpanan survei lokal persisten berbasis SQLite."""
-
-    def __init__(self, db_path):
-        self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(str(self.db_path), timeout=30) as conn:
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA synchronous=FULL")
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS survey_records (
-                    photo_key TEXT PRIMARY KEY,
-                    folder_source TEXT NOT NULL DEFAULT '',
-                    survey_data TEXT NOT NULL,
-                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-
-    def load_all(self):
-        with sqlite3.connect(str(self.db_path), timeout=30) as conn:
-            rows = conn.execute("SELECT photo_key, survey_data FROM survey_records").fetchall()
-        result = {}
-        for key, payload in rows:
-            try:
-                data = json.loads(payload)
-                if isinstance(data, dict):
-                    result[key] = data
-            except (TypeError, json.JSONDecodeError):
-                continue
-        return result
-
-    def save(self, photo_key, data):
-        payload = json.dumps(data, ensure_ascii=False)
-        with sqlite3.connect(str(self.db_path), timeout=30) as conn:
-            conn.execute("""
-                INSERT INTO survey_records(photo_key, folder_source, survey_data, updated_at)
-                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(photo_key) DO UPDATE SET
-                    folder_source=excluded.folder_source,
-                    survey_data=excluded.survey_data,
-                    updated_at=CURRENT_TIMESTAMP
-            """, (str(photo_key), str(data.get("folder", "")), payload))
-
-
 class RoadSurveyApp:
     def __init__(self, root):
         self.root = root
@@ -157,6 +114,14 @@ class RoadSurveyApp:
         self.survey_store = SQLiteSurveyStore(SURVEY_DB_PATH)
         self.survey_data = {}
         self._stored_survey_records = self.survey_store.load_all()
+        if self.survey_store.recovery_notice:
+            self.warn_after_startup("Database Survei", self.survey_store.recovery_notice)
+        if self.survey_store.skipped_rows:
+            self.warn_after_startup(
+                "Database Survei",
+                f"{self.survey_store.skipped_rows} catatan survei tidak dapat dibaca dan dilewati. "
+                "Catatan tersebut tidak dihapus dari database.",
+            )
         
         self.ai_mode_enabled = False
         # ON: minta konfirmasi sebelum saran AI diterapkan; OFF: terapkan langsung
@@ -1756,14 +1721,15 @@ else map.setView([-0.5, 101.5], 7);
             log_application_error("Ekspor skrip Colab", type(error), error, error.__traceback__)
             messagebox.showerror("Google Colab", str(error), parent=self.root)
 
+    def warn_after_startup(self, title, message):
+        """Catat peringatan dan tampilkan setelah jendela utama siap."""
+        log_application_error(title, RuntimeError, RuntimeError(message), None)
+        self.root.after(500, lambda: messagebox.showwarning(title, message, parent=self.root))
+
     def load_training_manifest(self):
         records, warning = load_record_manifest(SURVEY_AI_MANIFEST)
         if warning:
-            log_application_error("Memuat manifest dataset AI", RuntimeError, RuntimeError(warning), None)
-            self.root.after(
-                500,
-                lambda: messagebox.showwarning("Manifest Dataset AI", warning, parent=self.root),
-            )
+            self.warn_after_startup("Manifest Dataset AI", warning)
         return records
 
     def save_training_manifest(self):

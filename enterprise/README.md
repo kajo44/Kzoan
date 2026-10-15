@@ -166,6 +166,7 @@ Fitur **CLEAN** ditujukan untuk cache yang dikenali; jangan menggunakannya sebag
 | `aprj_ui.py` | Antarmuka dan alur aplikasi |
 | `aprj_core.py` | Konstanta dan path aplikasi |
 | `aprj_database.py` | Sinkronisasi PostgreSQL |
+| `aprj_store.py` | Penyimpanan survei lokal (SQLite): koneksi ditutup, database rusak dikarantina |
 | `aprj_ai_model.py` | Definisi arsitektur model |
 | `aprj_training_engine.py` | Training dan inferensi |
 | `aprj_pkrms.py` | Utilitas audit/ekspor PKRMS |
