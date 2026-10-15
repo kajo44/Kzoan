@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Siapkan bobot resmi ResNet-18 untuk dimasukkan ke build portable APRJ."""
 from pathlib import Path
-import hashlib
 import sys
 
 OUTPUT = Path(__file__).resolve().parent / "pretrained" / "resnet18-f37072fd.pth"
@@ -17,8 +16,18 @@ def main():
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     if OUTPUT.is_file() and OUTPUT.stat().st_size > 1_000_000:
-        print(f"Bobot pretrained sudah tersedia: {OUTPUT}")
-        return 0
+        try:
+            try:
+                existing = torch.load(OUTPUT, map_location="cpu", weights_only=True)
+            except TypeError:
+                existing = torch.load(OUTPUT, map_location="cpu")
+            if isinstance(existing, dict) and "conv1.weight" in existing and "layer4.0.conv1.weight" in existing:
+                print(f"Bobot pretrained tervalidasi dan sudah tersedia: {OUTPUT}")
+                return 0
+            print("Bobot yang ada tidak valid; akan diunduh ulang.")
+        except Exception as exc:
+            print(f"Bobot yang ada tidak dapat dibaca; akan diunduh ulang: {exc}")
+        OUTPUT.unlink(missing_ok=True)
     try:
         weights = ResNet18_Weights.IMAGENET1K_V1
         state_dict = weights.get_state_dict(progress=True, check_hash=True)
