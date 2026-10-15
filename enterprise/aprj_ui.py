@@ -159,6 +159,10 @@ class RoadSurveyApp:
         self._stored_survey_records = self.survey_store.load_all()
         
         self.ai_mode_enabled = False
+        # ON: minta konfirmasi sebelum saran AI diterapkan; OFF: terapkan langsung
+        # tanpa popup konfirmasi (hasil tetap harus diperiksa dan disimpan pengguna).
+        self.ai_popup_enabled = tk.BooleanVar(value=True)
+        self.ai_popup_button = None
         self.ai_resources = None
         self.ai_loaded_device = None
         self.ai_predictions = {}
@@ -252,6 +256,7 @@ class RoadSurveyApp:
             payload = {
                 "photo_folder": self.photo_folder,
                 "photo_index": self.current_photo_idx,
+                "ai_popup_enabled": bool(self.ai_popup_enabled.get()),
                 "saved_at": datetime.now().isoformat(timespec="seconds"),
             }
             temporary = self._session_path.with_suffix(".json.tmp")
@@ -266,6 +271,8 @@ class RoadSurveyApp:
             if not self._session_path.is_file():
                 return
             session = json.loads(self._session_path.read_text(encoding="utf-8"))
+            self.ai_popup_enabled.set(bool(session.get("ai_popup_enabled", True)))
+            self.update_ai_popup_button()
             folder = str(session.get("photo_folder", ""))
             if not folder or not Path(folder).is_dir():
                 return
@@ -515,6 +522,11 @@ class RoadSurveyApp:
             top_frame, text="MODE AI: OFF", bg="#34495e", fg="white", font=("Arial", 9, "bold"), command=self.toggle_ai_mode
         )
         self.ai_mode_button.pack(side=tk.RIGHT, padx=5, pady=5)
+        self.ai_popup_button = tk.Button(
+            top_frame, text="POP-UP AI: ON", bg="#8e44ad", fg="white",
+            font=("Arial", 9, "bold"), command=self.toggle_ai_popup
+        )
+        self.ai_popup_button.pack(side=tk.RIGHT, padx=5, pady=5)
 
         tk.Button(
             top_frame, text="PANDUAN", bg="#16a085", fg="white", font=("Arial", 9, "bold"), command=self.show_help_and_diagnostics
@@ -2459,9 +2471,10 @@ else map.setView([-0.5, 101.5], 7);
             "",
             "Terapkan saran ini ke formulir Survei Jalan untuk ditinjau?",
         ])
-        if not messagebox.askyesno("Saran AI — perlu verifikasi", "\n".join(lines), parent=self.root):
-            self.ai_training_status.set(f"Prediksi dibuat untuk {image_path.name}; tidak diterapkan.")
-            return
+        if self.ai_popup_enabled.get():
+            if not messagebox.askyesno("Saran AI — perlu verifikasi", "\n".join(lines), parent=self.root):
+                self.ai_training_status.set(f"Prediksi dibuat untuk {image_path.name}; tidak diterapkan.")
+                return
 
         for task, item in result["classes"].items():
             if task in self.options_config and item["label"] in self.options_config[task]:
@@ -2477,8 +2490,10 @@ else map.setView([-0.5, 101.5], 7);
             if field in width_vars:
                 width_vars[field].set(f"{value:.2f}")
         self.notebook.select(self.survey_tab)
+        apply_mode = "tanpa popup konfirmasi" if not self.ai_popup_enabled.get() else "setelah konfirmasi"
         self.ai_training_status.set(
-            f"Saran AI untuk {image_path.name} diterapkan ke formulir; tinjau dan simpan secara manual."
+            f"Saran AI untuk {image_path.name} diterapkan ke formulir ({apply_mode}); "
+            "tinjau hasil dan simpan secara manual. Prediksi bukan keputusan final."
         )
 
     def cancel_survey_training(self):
@@ -2629,6 +2644,26 @@ else map.setView([-0.5, 101.5], 7);
         if self.ai_mode_enabled:
             # Prediksi foto baru setelah pemuatan UI selesai agar formulir tidak bertabrakan.
             self.root.after_idle(self.predict_current_photo)
+
+    def update_ai_popup_button(self):
+        """Perbarui indikator popup AI tanpa mengubah mode prediksi."""
+        if self.ai_popup_button is None:
+            return
+        enabled = bool(self.ai_popup_enabled.get())
+        self.ai_popup_button.configure(
+            text=f"POP-UP AI: {'ON' if enabled else 'OFF'}",
+            bg="#8e44ad" if enabled else "#566573",
+        )
+
+    def toggle_ai_popup(self):
+        """Alihkan konfirmasi prediksi; mode AI ON/OFF tetap terpisah."""
+        self.ai_popup_enabled.set(not bool(self.ai_popup_enabled.get()))
+        self.update_ai_popup_button()
+        self.save_session()
+        if self.ai_popup_enabled.get():
+            self.ai_status.set("Popup konfirmasi AI aktif; saran perlu persetujuan sebelum diterapkan.")
+        else:
+            self.ai_status.set("Popup konfirmasi AI nonaktif; saran diterapkan langsung ke formulir untuk ditinjau.")
 
     def toggle_ai_mode(self):
         if self.ai_mode_enabled:
